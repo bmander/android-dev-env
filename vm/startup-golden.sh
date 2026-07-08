@@ -31,6 +31,26 @@ fi
 grep -q claude-auth.sh /etc/bash.bashrc 2>/dev/null || \
   echo '[ -f /etc/profile.d/claude-auth.sh ] && . /etc/profile.d/claude-auth.sh' >> /etc/bash.bashrc
 
+# Skip Claude Code's interactive first-run onboarding (which forces a login) — auth is
+# already handled by the OAuth token. Merge the flag into each user's ~/.claude.json,
+# preserving anything already there.
+for home in /home/*; do
+  [[ -d "$home" ]] || continue
+  u="$(stat -c %U "$home")"
+  python3 - "$home/.claude.json" <<'PY' || true
+import json, sys
+p = sys.argv[1]
+try:
+    d = json.load(open(p))
+except Exception:
+    d = {}
+d["hasCompletedOnboarding"] = True
+d.setdefault("theme", "dark")
+json.dump(d, open(p, "w"))
+PY
+  chown "$u:$u" "$home/.claude.json" 2>/dev/null || true
+done
+
 # Load KVM if this machine has nested virtualization (no-op otherwise) so /dev/kvm
 # appears — run-container.sh then passes it to the container for emulator acceleration.
 modprobe kvm_intel 2>/dev/null || modprobe kvm_amd 2>/dev/null || true

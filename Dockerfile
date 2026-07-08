@@ -57,6 +57,9 @@ WORKDIR /home/dev/work
 RUN echo "no" | avdmanager create avd -n "android${ANDROID_API}" \
         -k "system-images;android-${ANDROID_API};google_apis;x86_64" -d pixel_6 >/dev/null 2>&1 || true
 
+# Skip Claude Code's interactive first-run onboarding (auth is via the OAuth token env).
+RUN printf '{"hasCompletedOnboarding":true,"theme":"dark"}\n' > /home/dev/.claude.json
+
 COPY --chown=dev:dev container/entrypoint.sh /usr/local/bin/entrypoint.sh
 COPY --chown=dev:dev scripts/push-build.sh /usr/local/bin/push-build
 COPY --chown=dev:dev scripts/warm-repo.sh /usr/local/bin/warm-repo
