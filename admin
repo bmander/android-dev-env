@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# Launch the local admin webapp.  ./admin   (set ADMIN_PORT=... to change the port)
+set -euo pipefail
+HERE="$(cd "$(dirname "$0")" && pwd)"
+command -v python3 >/dev/null || { echo "python3 is required" >&2; exit 1; }
+exec python3 "$HERE/web/admin.py" "$@"
