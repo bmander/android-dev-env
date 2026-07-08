@@ -14,8 +14,7 @@ gcloud compute instances create "$INSTANCE" \
   --metadata=tailscale-authkey="$TAILSCALE_AUTHKEY",laptop-ts-host="${LAPTOP_TS_HOST:-}" \
   --metadata-from-file=startup-script="$REPO_ROOT/vm/startup-script.sh"
 
-echo "Waiting for SSH…"; sleep 20
-echo "Syncing repo to the VM (/opt/androiddevenv) so the container can build…"
+echo "Instance created. Syncing repo + building the container (waits for Docker)…"
 "$(dirname "$0")/push-repo.sh"
 echo
 echo "Next: SSH in and finish the one-time setup (see README 'First boot')."
