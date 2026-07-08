@@ -65,7 +65,10 @@ if [[ ! -d "$SDK/platform-tools" ]]; then
   wget -q "https://dl.google.com/android/repository/commandlinetools-linux-${CMDLINE_TOOLS}_latest.zip" -O /tmp/clt.zip
   unzip -q /tmp/clt.zip -d "$SDK/cmdline-tools" && rm /tmp/clt.zip
   mv "$SDK/cmdline-tools/cmdline-tools" "$SDK/cmdline-tools/latest"
+  # `yes |` gets SIGPIPE when sdkmanager stops reading; shield it from set -o pipefail.
+  set +o pipefail
   yes | "$SDK/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$SDK" --licenses >/dev/null
+  set -o pipefail
   "$SDK/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$SDK" --install \
     "platform-tools" "platforms;android-${ANDROID_API}" "build-tools;${BUILD_TOOLS}" \
     "emulator" "system-images;android-${ANDROID_API};google_apis;x86_64" >/dev/null
