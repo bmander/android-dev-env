@@ -35,6 +35,17 @@ if ! dpkg -s chrome-remote-desktop >/dev/null 2>&1; then
   echo "exec /usr/bin/xfce4-session" > /etc/chrome-remote-desktop-session
 fi
 
+# --- Google Chrome on the host desktop ------------------------------------
+# Real .deb (not the Ubuntu snap); also registers x-www-browser so the XFCE
+# panel's browser button works, and gives you a browser for docs / OAuth flows.
+if ! dpkg -s google-chrome-stable >/dev/null 2>&1; then
+  curl -fsSL https://dl.google.com/linux/linux_signing_key.pub \
+    | gpg --dearmor -o /usr/share/keyrings/google-chrome.gpg
+  echo "deb [arch=amd64 signed-by=/usr/share/keyrings/google-chrome.gpg] https://dl.google.com/linux/chrome/deb/ stable main" \
+    > /etc/apt/sources.list.d/google-chrome.list
+  apt-get update && apt-get install -y google-chrome-stable
+fi
+
 # --- Node + Claude Code on the host workspace -----------------------------
 # The container has its own claude; this puts it in the desktop terminal too,
 # alongside Android Studio. Auth (ANTHROPIC_API_KEY) is wired per-node at boot.
