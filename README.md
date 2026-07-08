@@ -141,7 +141,7 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 A tidy, self-contained local dashboard (Python 3 stdlib only, no deps):
 
 ```bash
-python3 web/admin.py            # opens http://127.0.0.1:8787
+./admin                         # opens http://127.0.0.1:8787  (ADMIN_PORT=... to change)
 ```
 
 Shows all instances (status, machine, IP, and a running $/hr total), plus images,
