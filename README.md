@@ -201,9 +201,36 @@ a full `./vm/install.sh`.
 - `laptop/` — Tailscale + adb server setup and an ACL example.
 - `scripts/push-build.sh` — build-and-install-over-tailnet (installed as `push-build` in the container).
 
-## Phase 2 (not yet built): emulator/device grid
+## Emulators (KVM / nested virtualization)
 
-Emulators need KVM. On GCE that means a machine type with **nested virtualization**
-(e.g. `n2-standard-8` + a licensed image) and `--enable-nested-virtualization`. Add an
-emulator layer to the image (`emulator`, `system-images;android-34;google_apis;x86_64`)
-and run headless AVDs, or wire up a grid (e.g. Android Emulator Container / STF).
+Android emulators need KVM, which on E2 machines doesn't exist. Opt into nested
+virtualization with a non-E2 machine:
+
+```bash
+# in .env
+NESTED_VIRT=1
+MACHINE=n2-standard-8        # or n2d-standard-8 (AMD, cheaper); NOT e2/t2
+```
+
+Then `./vm/create.sh` adds `--enable-nested-virtualization`, the node loads the KVM
+module, and `run-container.sh` passes `/dev/kvm` into the container — so the baked
+`emulator` + `android-34` AVD hardware-accelerate. Studio's emulator on the host desktop
+works too (host `/dev/kvm`). **Cost:** nested virt adds no surcharge; you only pay the
+pricier machine (see below). Container-side `/dev/kvm` passthrough needs the current
+`run-container.sh`, so re-bake (`./vm/install.sh`) or `push-repo.sh` a live node first.
+
+### Does it cost more?
+
+Nested virt is free; the machine is the only difference. Rough us-west1 on-demand $/hr:
+
+| Machine | vCPU / RAM | ~$/hr | Nested virt? |
+|---|---|---|---|
+| `e2-standard-4` (default) | 4 / 16 GB | 0.134 | ❌ |
+| `n2d-standard-4` (AMD) | 4 / 16 GB | ~0.17 | ✅ |
+| `n2-standard-4` (Intel) | 4 / 16 GB | ~0.19 | ✅ |
+| `n2d-standard-8` | 8 / 32 GB | ~0.34 | ✅ |
+| `n2-standard-8` | 8 / 32 GB | ~0.39 | ✅ |
+
+Same size, N2D is ~25% pricier than E2 and N2 ~45%; `n2-standard-8` is ~2.9× the default
+but also twice the machine (better for a multi-emulator grid). You only pay while running,
+and `n2d-*` is the cheapest nested-virt option.

@@ -33,7 +33,15 @@ GH_TOKEN="$(meta github-token)"
 GIT_REPO="$(meta git-repo)"
 GIT_BRANCH="$(meta git-branch)"
 GRADLE_WARM_TASK="$(meta gradle-warm-task)"
-docker run -d --name android-dev --restart unless-stopped --network=host \
+
+# If the host has KVM (nested virt enabled), pass it in so the container's emulator can
+# hardware-accelerate; --group-add gives the dev user access to the device node.
+KVM_ARGS=""
+if [[ -e /dev/kvm ]]; then
+  KVM_ARGS="--device /dev/kvm --group-add $(stat -c %g /dev/kvm)"
+fi
+
+docker run -d --name android-dev --restart unless-stopped --network=host $KVM_ARGS \
   -e LAPTOP_TS_HOST="${LAPTOP_TS_HOST}" \
   ${API_KEY:+-e ANTHROPIC_API_KEY="${API_KEY}"} \
   ${OAUTH_TOKEN:+-e CLAUDE_CODE_OAUTH_TOKEN="${OAUTH_TOKEN}"} \

@@ -44,9 +44,21 @@ if [[ -n "${GIT_REPO:-}" && -z "$GITHUB_TOKEN" ]]; then
   echo "note: GIT_REPO set but no GitHub token (set GITHUB_TOKEN in .env or run 'gh auth login') — private clone will fail." >&2
 fi
 
-echo "Creating $NAME ($MACHINE) from $GOLDEN_IMAGE in $ZONE / $PROJECT …"
+# Nested virtualization (KVM) for Android emulators — opt-in via NESTED_VIRT=1.
+NV_FLAG=""
+if [[ -n "${NESTED_VIRT:-}" ]]; then
+  case "$MACHINE" in
+    e2-*|t2a-*|t2d-*)
+      echo "NESTED_VIRT=1 needs a nested-virt-capable machine (e.g. n2-standard-8), not $MACHINE." >&2
+      echo "Set MACHINE=n2-standard-8 in .env." >&2
+      exit 1 ;;
+  esac
+  NV_FLAG="--enable-nested-virtualization"
+fi
+
+echo "Creating $NAME ($MACHINE${NV_FLAG:+, KVM}) from $GOLDEN_IMAGE in $ZONE / $PROJECT …"
 gcloud compute instances create "$NAME" \
-  --project="$PROJECT" --zone="$ZONE" --machine-type="$MACHINE" \
+  --project="$PROJECT" --zone="$ZONE" --machine-type="$MACHINE" $NV_FLAG \
   --image="$GOLDEN_IMAGE" --boot-disk-type=pd-balanced --boot-disk-size="${DISK_GB}GB" \
   --labels=environment=development,purpose=android-dev \
   --metadata=tailscale-authkey="$TAILSCALE_AUTHKEY",laptop-ts-host="${LAPTOP_TS_HOST:-}",anthropic-api-key="${ANTHROPIC_API_KEY:-}",claude-oauth-token="${CLAUDE_CODE_OAUTH_TOKEN:-}",github-token="${GITHUB_TOKEN}",git-repo="${GIT_REPO:-}",git-branch="${GIT_BRANCH:-}",gradle-warm-task="${GRADLE_WARM_TASK:-}" \

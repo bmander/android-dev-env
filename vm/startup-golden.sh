@@ -27,6 +27,10 @@ fi
   [[ -n "$OAUTH_TOKEN" ]] && printf 'export CLAUDE_CODE_OAUTH_TOKEN=%q\n' "$OAUTH_TOKEN"
 } > /etc/profile.d/claude-auth.sh
 
+# Load KVM if this machine has nested virtualization (no-op otherwise) so /dev/kvm
+# appears — run-container.sh then passes it to the container for emulator acceleration.
+modprobe kvm_intel 2>/dev/null || modprobe kvm_amd 2>/dev/null || true
+
 # --- android-dev container (image + launcher baked in) --------------------
 if command -v run-android-dev >/dev/null; then
   run-android-dev            # single source of truth for the run args (vm/run-container.sh)
