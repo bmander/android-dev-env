@@ -11,11 +11,11 @@ source "$(dirname "$0")/config.sh"
 
 BUILDER="${INSTANCE}-builder"
 
-echo "== 1/6 create builder $BUILDER (ubuntu, full provisioning) =="
+echo "== 1/6 create builder $BUILDER ($BUILDER_MACHINE, $BUILDER_DISK_TYPE) =="
 gcloud compute instances create "$BUILDER" \
-  --project="$PROJECT" --zone="$ZONE" --machine-type="$MACHINE" \
+  --project="$PROJECT" --zone="$ZONE" --machine-type="$BUILDER_MACHINE" \
   --image-family="$IMAGE_FAMILY" --image-project="$IMAGE_PROJECT" \
-  --boot-disk-size="${DISK_GB}GB" --boot-disk-type=pd-balanced \
+  --boot-disk-size="${DISK_GB}GB" --boot-disk-type="$BUILDER_DISK_TYPE" \
   --labels=environment=development,purpose=android-dev-builder \
   --metadata-from-file=startup-script="$REPO_ROOT/vm/startup-script.sh"
   # NB: no tailscale-authkey metadata -> builder never joins the tailnet -> nothing to clean.
