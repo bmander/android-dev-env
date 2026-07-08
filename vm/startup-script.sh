@@ -35,4 +35,37 @@ if ! dpkg -s chrome-remote-desktop >/dev/null 2>&1; then
   echo "exec /usr/bin/xfce4-session" > /etc/chrome-remote-desktop-session
 fi
 
+# --- Node + Claude Code on the host workspace -----------------------------
+# The container has its own claude; this puts it in the desktop terminal too,
+# alongside Android Studio. Auth (ANTHROPIC_API_KEY) is wired per-node at boot.
+if ! command -v claude >/dev/null; then
+  if ! command -v node >/dev/null; then
+    curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
+    apt-get install -y --no-install-recommends nodejs
+  fi
+  npm install -g @anthropic-ai/claude-code && npm cache clean --force
+fi
+
+# --- Android Studio on the host desktop -----------------------------------
+# Studio bundles its own JDK (JBR); its SDK is installed by the first-run wizard
+# (persists on the node disk). NOTE: Studio's emulator needs KVM, which this
+# machine type lacks — editing/building/on-device debugging work, emulators don't.
+if [[ ! -d /opt/android-studio ]]; then
+  apt-get install -y --no-install-recommends \
+    libxrender1 libxtst6 libxi6 libxext6 libfreetype6 fontconfig
+  wget -qO /tmp/studio.tar.gz \
+    "https://edgedl.me.gvt1.com/android/studio/ide-zips/2026.1.1.10/android-studio-quail1-patch2-linux.tar.gz"
+  tar -xzf /tmp/studio.tar.gz -C /opt/
+  rm -f /tmp/studio.tar.gz
+  cat > /usr/share/applications/android-studio.desktop <<'DESKTOP'
+[Desktop Entry]
+Name=Android Studio
+Exec=/opt/android-studio/bin/studio.sh
+Icon=/opt/android-studio/bin/studio.png
+Type=Application
+Categories=Development;IDE;
+Terminal=false
+DESKTOP
+fi
+
 echo "=== provisioning done $(date -u) ==="

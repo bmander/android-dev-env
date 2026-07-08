@@ -44,9 +44,10 @@ Lock the tailnet so only the VM can reach adb — see `laptop/tailscale-acl-exam
 
 ## Cloud: bake the golden image once, then spin up fast
 
-New nodes boot from a pre-baked **golden image** (Docker + Tailscale + CRD + the
-`android-dev` container image, incl. the Android emulator packages, all baked in), so
-they're ready in ~1 min instead of ~7. Build it once:
+New nodes boot from a pre-baked **golden image** — Docker + Tailscale + CRD + the
+`android-dev` container image (incl. the Android emulator packages), plus **Android
+Studio** and **Claude Code** on the host desktop workspace — all baked in, so they're
+ready in ~1 min instead of ~7. Build it once:
 
 ```bash
 ./vm/install.sh          # spins a throwaway builder, bakes android-dev-golden, cleans up

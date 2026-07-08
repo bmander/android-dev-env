@@ -16,6 +16,15 @@ if [[ -n "$AUTHKEY" ]]; then
   tailscale up --authkey="$AUTHKEY" --hostname="$(hostname)" --ssh --accept-routes || true
 fi
 
+# --- Claude Code auth for host workspace shells ---------------------------
+# The container gets ANTHROPIC_API_KEY via run-container.sh; this makes it available
+# to the desktop terminal too. If unset, `claude` falls back to interactive login.
+API_KEY="$(meta anthropic-api-key)"
+if [[ -n "$API_KEY" ]]; then
+  printf 'export ANTHROPIC_API_KEY=%q\n' "$API_KEY" > /etc/profile.d/anthropic-api-key.sh
+  chmod 644 /etc/profile.d/anthropic-api-key.sh
+fi
+
 # --- android-dev container (image + launcher baked in) --------------------
 if command -v run-android-dev >/dev/null; then
   run-android-dev            # single source of truth for the run args (vm/run-container.sh)
