@@ -203,13 +203,14 @@ a full `./vm/install.sh`.
 
 ## Emulators (KVM / nested virtualization)
 
-Android emulators need KVM, which on E2 machines doesn't exist. Opt into nested
-virtualization with a non-E2 machine:
+Android emulators need KVM. On GCP, nested virtualization is **Intel-only (VT-x)** — AMD
+(N2D/C2D/C3D), E2, and Arm (T2A) never expose virtualization to the guest, *even though
+the `--enable-nested-virtualization` flag is accepted on them*. Use an Intel N2/C-series:
 
 ```bash
 # in .env
 NESTED_VIRT=1
-MACHINE=n2-standard-8        # or n2d-standard-8 (AMD, cheaper); NOT e2/t2
+MACHINE=n2-standard-4        # or n2-standard-8 for a grid; must be Intel — NOT n2d/e2/t2
 ```
 
 Then `./vm/create.sh` adds `--enable-nested-virtualization`, the node loads the KVM
@@ -225,12 +226,11 @@ Nested virt is free; the machine is the only difference. Rough us-west1 on-deman
 
 | Machine | vCPU / RAM | ~$/hr | Nested virt? |
 |---|---|---|---|
-| `e2-standard-4` (default) | 4 / 16 GB | 0.134 | ❌ |
-| `n2d-standard-4` (AMD) | 4 / 16 GB | ~0.17 | ✅ |
+| `e2-standard-4` (default) | 4 / 16 GB | 0.134 | ❌ E2 |
+| `n2d-standard-4` (AMD) | 4 / 16 GB | ~0.17 | ❌ AMD (flag lies) |
 | `n2-standard-4` (Intel) | 4 / 16 GB | ~0.19 | ✅ |
-| `n2d-standard-8` | 8 / 32 GB | ~0.34 | ✅ |
-| `n2-standard-8` | 8 / 32 GB | ~0.39 | ✅ |
+| `n2-standard-8` (Intel) | 8 / 32 GB | ~0.39 | ✅ |
 
-Same size, N2D is ~25% pricier than E2 and N2 ~45%; `n2-standard-8` is ~2.9× the default
-but also twice the machine (better for a multi-emulator grid). You only pay while running,
-and `n2d-*` is the cheapest nested-virt option.
+The cheapest option that actually works is **`n2-standard-4`** (~45% more than the E2
+default for the same size); `n2-standard-8` is ~2.9× but twice the machine — better for a
+multi-emulator grid. You only pay while running.

@@ -48,9 +48,10 @@ fi
 NV_FLAG=""
 if [[ -n "${NESTED_VIRT:-}" ]]; then
   case "$MACHINE" in
-    e2-*|t2a-*|t2d-*)
-      echo "NESTED_VIRT=1 needs a nested-virt-capable machine (e.g. n2-standard-8), not $MACHINE." >&2
-      echo "Set MACHINE=n2-standard-8 in .env." >&2
+    e2-*|t2a-*|t2d-*|n2d-*|c2d-*|c3d-*)
+      echo "NESTED_VIRT needs an INTEL machine — GCP nested virt is VT-x only." >&2
+      echo "AMD (n2d/c2d/c3d), E2, and Arm (t2a) never expose virtualization to the guest." >&2
+      echo "Set MACHINE=n2-standard-4 (or n2-standard-8 for a grid) in .env." >&2
       exit 1 ;;
   esac
   NV_FLAG="--enable-nested-virtualization"
