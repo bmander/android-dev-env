@@ -27,6 +27,7 @@ export DISK_GB="${DISK_GB:-60}"
 export IMAGE_FAMILY="${IMAGE_FAMILY:-ubuntu-2204-lts}"
 export IMAGE_PROJECT="${IMAGE_PROJECT:-ubuntu-os-cloud}"
 export SNAPSHOT="${SNAPSHOT:-android-dev-snap}"
+export GOLDEN_IMAGE="${GOLDEN_IMAGE:-android-dev-golden}"
 
 require_env() {
   if [[ -z "${TAILSCALE_AUTHKEY:-}" ]]; then

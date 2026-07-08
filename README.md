@@ -42,15 +42,35 @@ tailscale ip -4                  # note this laptop's tailnet IP  -> LAPTOP_TS_H
 ```
 Lock the tailnet so only the VM can reach adb — see `laptop/tailscale-acl-example.json`.
 
-## Cloud: create the VM
+## Cloud: bake the golden image once, then spin up fast
 
-With `.env` filled in (`TAILSCALE_AUTHKEY`, `LAPTOP_TS_HOST`):
+New nodes boot from a pre-baked **golden image** (Docker + Tailscale + CRD + the
+`android-dev` container image, incl. the Android emulator packages, all baked in), so
+they're ready in ~1 min instead of ~7. Build it once:
 
 ```bash
-./vm/create.sh
+./vm/bake-image.sh          # spins a throwaway builder, bakes android-dev-golden, cleans up
 ```
-This provisions the VM, installs Docker + Tailscale + CRD, syncs this repo, and builds
-the `android-dev` container.
+
+Then create nodes from it (needs a **reusable** `TAILSCALE_AUTHKEY`, since every node is
+its own tailnet member):
+
+```bash
+./vm/create.sh              # primary node (prompts for the one-time CRD desktop code)
+./vm/create.sh android-dev-2   # another node
+```
+
+### Fleet: spin many up / down
+
+```bash
+./vm/fleet.sh up 4          # 4 headless workers android-dev-w-1..4 (no desktop), in parallel
+./vm/fleet.sh list          # show them
+./vm/fleet.sh down          # delete them all
+```
+Workers are headless (SSH/Claude only); the desktop (CRD) is registered on your primary
+node only. Set `ANTHROPIC_API_KEY` in `.env` so `claude` works non-interactively on workers.
+
+Re-run `./vm/bake-image.sh` whenever you change the `Dockerfile` or host provisioning.
 
 ### First boot: register Chrome Remote Desktop (one-time per fresh VM)
 
@@ -104,7 +124,7 @@ disk, which both `stop` and `nuke`-snapshot preserve.
 ## Files
 
 - `Dockerfile`, `container/` — the reproducible Android + Claude + gh toolchain.
-- `vm/` — lifecycle: `create · start · stop · nuke · restore · ssh · push-repo · crd-setup` + `startup-script.sh`.
+- `vm/` — lifecycle: `bake-image · create · fleet · start · stop · nuke · restore · ssh · push-repo · crd-setup` + `startup-script.sh` (builder/bootstrap) and `startup-golden.sh` (lean per-node).
 - `laptop/` — Tailscale + adb server setup and an ACL example.
 - `scripts/push-build.sh` — build-and-install-over-tailnet (installed as `push-build` in the container).
 
