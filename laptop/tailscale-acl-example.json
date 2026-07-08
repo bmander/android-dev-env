@@ -1,0 +1,19 @@
+// Example Tailscale ACL: let ONLY the android-dev node reach this laptop's adb
+// server on tcp:5037. Paste/adapt in the admin console (Access Controls).
+// Replace the tag/host names to match your tailnet.
+{
+  "tagOwners": {
+    "tag:android-dev": ["autogroup:admin"]
+  },
+  "acls": [
+    // Everything else your tailnet already allows...
+    { "action": "accept", "src": ["autogroup:member"], "dst": ["*:*"] },
+
+    // ...plus: android-dev VM may reach any laptop's adb server, nothing else new.
+    {
+      "action": "accept",
+      "src": ["tag:android-dev"],
+      "dst": ["autogroup:member:5037"]
+    }
+  ]
+}
