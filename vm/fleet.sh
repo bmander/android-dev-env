@@ -22,8 +22,9 @@ case "$CMD" in
     ;;
   down)
     BASE="${2:-android-dev-w}"
-    mapfile -t NODES < <(gcloud compute instances list --project="$PROJECT" \
-      --filter="name~^${BASE}- AND zone:($ZONE)" --format="value(name)")
+    NODES=()
+    while IFS= read -r n; do [[ -n "$n" ]] && NODES+=("$n"); done < <(gcloud compute instances list \
+      --project="$PROJECT" --filter="name~^${BASE}- AND zone:($ZONE)" --format="value(name)")
     [[ ${#NODES[@]} -gt 0 ]] || { echo "no nodes matching ${BASE}-*"; exit 0; }
     printf 'deleting: %s\n' "${NODES[@]}"
     gcloud compute instances delete "${NODES[@]}" --zone="$ZONE" --project="$PROJECT" -q

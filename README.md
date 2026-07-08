@@ -50,8 +50,16 @@ Studio** and **Claude Code** on the host desktop workspace — all baked in, so 
 ready in ~1 min instead of ~7. Build it once:
 
 ```bash
-./vm/install.sh          # spins a throwaway builder, bakes android-dev-golden, cleans up
+./vm/install.sh          # guided: bakes the base image, then (interactively) spins up a
+                         # seed, drops you into its desktop to configure Android Studio
+                         # graphically, and re-bakes the image from it — see below
 ```
+
+`install.sh` walks the whole thing end to end: it bakes the base image from a throwaway
+builder, then offers to bring up a **seed** node so you can finish Android Studio's setup
+wizard (SDK, licenses, prefs) — or anything else — graphically over the desktop. Press
+Enter and it re-bakes the golden image from that configured seed and deletes it. Skip the
+interactive part (no TTY / no `TAILSCALE_AUTHKEY`) and it just leaves the base image.
 
 Then create nodes from it (needs a **reusable** `TAILSCALE_AUTHKEY`, since every node is
 its own tailnet member):
@@ -73,17 +81,16 @@ node only. Set `ANTHROPIC_API_KEY` in `.env` so `claude` works non-interactively
 
 Re-run `./vm/install.sh` whenever you change the `Dockerfile` or host provisioning.
 
-### Bake a graphically-configured Android Studio into the image
+### Re-bake later without a full reinstall
 
-`install.sh` bakes the Studio *binary*, but its SDK/licenses/prefs get set up by the
-first-run wizard. To do that **once** and stamp it onto every future node:
+`install.sh` already handles the first configure-and-stamp. To change the baked setup
+afterward *without* rebuilding the whole image, configure any live node and re-bake from it:
 
 ```bash
-./vm/create.sh seed        # boot a node from the current golden image
-# connect at remotedesktop.google.com/access, launch Android Studio,
-# and click through its setup wizard (SDK, licenses, preferences)
-./vm/reimage.sh seed       # re-bake the golden image from that configured node
-./vm/create.sh             # new nodes now come up with Studio ready
+./vm/create.sh seed        # (or reuse an existing node)
+# connect at remotedesktop.google.com/access and change whatever you want baked in
+./vm/reimage.sh seed       # re-bake the golden image from that node
+./vm/create.sh             # new nodes now stamp the new state
 ```
 
 `reimage.sh` keeps the configured home dir (`~/Android/Sdk`, `~/.config/Google/…`, AVDs)
