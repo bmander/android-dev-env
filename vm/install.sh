@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
-# Bake the android-dev-golden GCE image so new instances boot in ~1 min instead of ~7.
+# One-time install: build the android-dev container image and bake it into the
+# android-dev-golden GCE image, so `vm/create.sh` can spin up ready nodes in ~1 min.
+#
 # Spins a throwaway builder (your existing VMs are untouched), installs Docker/Tailscale/
 # CRD + builds the android-dev container image into the disk, generalizes (strips per-
 # machine identity so clones don't collide), then creates the image and deletes the builder.
 #
-# One-time / whenever the Dockerfile or host provisioning changes. Needs TAILSCALE_AUTHKEY
-# only if you want the builder itself on the tailnet (not required — we skip it).
+# Run once, and again whenever the Dockerfile or host provisioning changes.
 source "$(dirname "$0")/config.sh"
 
 BUILDER="${INSTANCE}-builder"

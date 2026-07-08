@@ -49,7 +49,7 @@ New nodes boot from a pre-baked **golden image** (Docker + Tailscale + CRD + the
 they're ready in ~1 min instead of ~7. Build it once:
 
 ```bash
-./vm/bake-image.sh          # spins a throwaway builder, bakes android-dev-golden, cleans up
+./vm/install.sh          # spins a throwaway builder, bakes android-dev-golden, cleans up
 ```
 
 Then create nodes from it (needs a **reusable** `TAILSCALE_AUTHKEY`, since every node is
@@ -70,7 +70,7 @@ its own tailnet member):
 Workers are headless (SSH/Claude only); the desktop (CRD) is registered on your primary
 node only. Set `ANTHROPIC_API_KEY` in `.env` so `claude` works non-interactively on workers.
 
-Re-run `./vm/bake-image.sh` whenever you change the `Dockerfile` or host provisioning.
+Re-run `./vm/install.sh` whenever you change the `Dockerfile` or host provisioning.
 
 ### First boot: register Chrome Remote Desktop (one-time per fresh VM)
 
@@ -124,7 +124,7 @@ disk, which both `stop` and `nuke`-snapshot preserve.
 ## Files
 
 - `Dockerfile`, `container/` — the reproducible Android + Claude + gh toolchain.
-- `vm/` — lifecycle: `bake-image · create · fleet · start · stop · nuke · restore · ssh · push-repo · crd-setup` + `startup-script.sh` (builder/bootstrap) and `startup-golden.sh` (lean per-node).
+- `vm/` — lifecycle: `install · create · fleet · start · stop · nuke · restore · ssh · push-repo · crd-setup` + `startup-script.sh` (builder/bootstrap) and `startup-golden.sh` (lean per-node).
 - `laptop/` — Tailscale + adb server setup and an ACL example.
 - `scripts/push-build.sh` — build-and-install-over-tailnet (installed as `push-build` in the container).
 

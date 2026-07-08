@@ -8,9 +8,9 @@ require_env
 
 NAME="${1:-$INSTANCE}"
 
-# The golden image must exist first (run ./vm/bake-image.sh once).
+# The golden image must exist first (run ./vm/install.sh once).
 if ! gcloud compute images describe "$GOLDEN_IMAGE" --project="$PROJECT" >/dev/null 2>&1; then
-  echo "Golden image '$GOLDEN_IMAGE' not found. Build it once with:  ./vm/bake-image.sh" >&2
+  echo "Golden image '$GOLDEN_IMAGE' not found. Build it once with:  ./vm/install.sh" >&2
   exit 1
 fi
 
