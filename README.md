@@ -149,10 +149,15 @@ its disk outright. Nothing is snapshotted — the durable state is the **golden 
 your **pushed git work**. The intended loop is: spin up a node for one GitHub issue, do the
 work, push, then `nuke` all the way down to $0.
 
+**`./vm/cleanup.sh`** goes further: it wipes *everything* billable in the project — all
+instances, disks, the **golden image**, and any snapshots — after showing you the list and
+asking to confirm (`-y` to skip). Use it to zero out completely; the next start then needs
+a full `./vm/install.sh`.
+
 ## Files
 
 - `Dockerfile`, `container/` — the reproducible Android + Claude + gh toolchain.
-- `vm/` — lifecycle: `install · create · fleet · reimage · start · stop · nuke · ssh · push-repo · crd-setup`; `startup-script.sh` (builder provisioner) and `startup-golden.sh` (lean per-node boot); `run-container.sh` (baked container launcher); `lib-bake.sh` (shared generalize + image helpers for `install`/`reimage`).
+- `vm/` — lifecycle: `install · create · fleet · reimage · start · stop · nuke · cleanup · ssh · push-repo · crd-setup`; `startup-script.sh` (builder provisioner) and `startup-golden.sh` (lean per-node boot); `run-container.sh` (baked container launcher); `lib-bake.sh` (shared generalize + image helpers for `install`/`reimage`).
 - `laptop/` — Tailscale + adb server setup and an ACL example.
 - `scripts/push-build.sh` — build-and-install-over-tailnet (installed as `push-build` in the container).
 
