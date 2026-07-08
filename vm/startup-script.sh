@@ -48,20 +48,14 @@ if ! dpkg -s chrome-remote-desktop >/dev/null 2>&1; then
 fi
 
 # --- android-dev container ------------------------------------------------
-LAPTOP_TS_HOST="$(meta laptop-ts-host)"
-SRC=/opt/androiddevenv
-if [[ -d "$SRC/.git" ]]; then git -C "$SRC" pull --ff-only || true; fi
-if [[ -f "$SRC/Dockerfile" ]]; then
-  docker build -t android-dev:latest "$SRC"
-  docker rm -f android-dev >/dev/null 2>&1 || true
-  docker run -d --name android-dev --restart unless-stopped \
-    --network=host \
-    -e LAPTOP_TS_HOST="${LAPTOP_TS_HOST}" \
-    -v android-dev-work:/home/dev/work \
-    -v android-dev-home:/home/dev/.claude \
-    android-dev:latest
-  echo "container up. enter with: docker exec -it -u dev android-dev bash"
+# The container is built+launched by vm/push-repo.sh (called from create.sh), and it
+# runs with `--restart unless-stopped`, so Docker brings it back automatically on every
+# stop/start or reboot. The startup script deliberately does NOT build/run it here — two
+# launchers racing on first boot caused a name conflict. To rebuild after image changes,
+# run ./vm/push-repo.sh from your laptop.
+if docker ps --format '{{.Names}}' | grep -qx android-dev; then
+  echo "android-dev container already running (restart policy)."
 else
-  echo "!! $SRC/Dockerfile missing — push the repo to /opt/androiddevenv (see README)"
+  echo "android-dev container not running yet — run ./vm/push-repo.sh to build/launch it."
 fi
 echo "=== startup done $(date -u) ==="
