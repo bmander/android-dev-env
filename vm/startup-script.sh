@@ -59,8 +59,8 @@ fi
 
 # --- Android Studio on the host desktop -----------------------------------
 # Studio bundles its own JDK (JBR); its SDK is installed by the first-run wizard
-# (persists on the node disk). NOTE: Studio's emulator needs KVM, which this
-# machine type lacks — editing/building/on-device debugging work, emulators don't.
+# (persists on the node disk). Studio's emulator needs KVM — works on an Intel
+# nested-virt node (NESTED_VIRT=1 + n2-*), otherwise editing/building/debugging only.
 if [[ ! -d /opt/android-studio ]]; then
   apt-get install -y --no-install-recommends \
     libxrender1 libxtst6 libxi6 libxext6 libfreetype6 fontconfig
@@ -78,5 +78,11 @@ Categories=Development;IDE;
 Terminal=false
 DESKTOP
 fi
+
+# --- KVM device access ----------------------------------------------------
+# /dev/kvm is root:kvm 0660 by default; make it world-accessible so the desktop
+# user and the container can run the emulator without kvm-group juggling. (Single-
+# user dev VM — fine.) Applied by udev whenever /dev/kvm appears (Intel nested-virt).
+echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666"' > /etc/udev/rules.d/99-kvm.rules
 
 echo "=== provisioning done $(date -u) ==="

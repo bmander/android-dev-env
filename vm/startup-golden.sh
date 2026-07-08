@@ -30,6 +30,9 @@ fi
 # Load KVM if this machine has nested virtualization (no-op otherwise) so /dev/kvm
 # appears — run-container.sh then passes it to the container for emulator acceleration.
 modprobe kvm_intel 2>/dev/null || modprobe kvm_amd 2>/dev/null || true
+# Open /dev/kvm to all local users (desktop + container) for the emulator. The baked
+# udev rule handles this too; this covers the current boot / pre-rebake nodes.
+[[ -e /dev/kvm ]] && chmod 0666 /dev/kvm 2>/dev/null || true
 
 # --- android-dev container (image + launcher baked in) --------------------
 if command -v run-android-dev >/dev/null; then
