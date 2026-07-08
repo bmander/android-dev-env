@@ -1,26 +1,21 @@
 #!/usr/bin/env bash
-# Rebuild the android-dev image on a node after editing the Dockerfile (or scripts),
-# then relaunch the container via the baked launcher. Usage:
-#   ./vm/push-repo.sh [name]     # default: $INSTANCE
+# Refresh the baked helper scripts (push-build, warm-repo) on a running node — a quick way
+# to iterate on them without a full re-bake. For provisioner/image changes, re-run
+# ./vm/install.sh instead. Usage:
+#   ./vm/push-repo.sh [name]        # default: $INSTANCE
 source "$(dirname "$0")/config.sh"
 
 NAME="${1:-$INSTANCE}"
 
-echo "Waiting for SSH + Docker on $NAME…"
-wait_remote "$NAME" 'command -v docker >/dev/null'
-echo " ready."
+echo "Waiting for SSH on $NAME…"
+wait_remote "$NAME" 'true'
 
-ssh_vm "$NAME" "sudo mkdir -p /opt/androiddevenv && sudo chown \$(whoami) /opt/androiddevenv"
-gcloud compute scp --recurse --zone="$ZONE" --project="$PROJECT" \
-  "$REPO_ROOT/Dockerfile" "$REPO_ROOT/container" "$REPO_ROOT/scripts" "$REPO_ROOT/vm/run-container.sh" \
-  "$NAME":/opt/androiddevenv/
-
-echo "Rebuilding image + relaunching container on $NAME…"
+gcloud compute scp --zone="$ZONE" --project="$PROJECT" \
+  "$REPO_ROOT/scripts/push-build.sh" "$REPO_ROOT/scripts/warm-repo.sh" "$NAME":/tmp/
 ssh_vm "$NAME" '
   set -e
-  sudo docker build -t android-dev:latest /opt/androiddevenv
-  sudo install -m 0755 /opt/androiddevenv/run-container.sh /usr/local/bin/run-android-dev
-  sudo run-android-dev --force
-  sudo docker ps --filter name=android-dev
+  sudo install -m 0755 /tmp/push-build.sh /usr/local/bin/push-build
+  sudo install -m 0755 /tmp/warm-repo.sh /usr/local/bin/warm-repo
+  rm -f /tmp/push-build.sh /tmp/warm-repo.sh
+  echo "helper scripts updated."
 '
-echo "Done. Enter it with: ./vm/ssh.sh  then  sudo docker exec -it -u dev android-dev bash"

@@ -8,7 +8,6 @@
 generalize_instance() {
   ssh_vm "$1" '
     set -e
-    sudo docker rm -f android-dev 2>/dev/null || true          # image stays; container is per-node
     sudo systemctl stop tailscaled 2>/dev/null || true
     sudo rm -f /var/lib/tailscale/tailscaled.state* 2>/dev/null || true
     for u in $(ls /home 2>/dev/null); do                       # drop the seed CRD registration

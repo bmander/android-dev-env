@@ -6,17 +6,18 @@ into your **laptop** over Tailscale. Pause it to near-zero (`stop`) or literal $
 (`nuke`) whenever you want.
 
 ```
-┌─ Laptop ───────────────┐        ┌─ GCE VM: android-dev (e2-standard-4) ─────────┐
-│ Tailscale node         │        │ host: Tailscale + Chrome Remote Desktop + XFCE│
-│ adb server :5037       │◀─ Tailscale ─▶ docker (--network=host):                │
-│ USB → phone            │ MagicDNS│   JDK17 · Android SDK · Gradle · gh · claude  │
+┌─ Laptop ───────────────┐        ┌─ GCE VM: android-dev (bare-metal, no Docker) ─┐
+│ Tailscale node         │        │ Tailscale · Chrome Remote Desktop + XFCE      │
+│ adb server :5037       │◀─ Tailscale ─▶ JDK17 · Android SDK · Studio · gh ·     │
+│ USB → phone            │ MagicDNS│   Claude · Chrome · your repo in ~/work       │
 └────────────────────────┘        └───────────────────────────────────────────────┘
       install here                       build here; `adb install` streams down
 ```
 
-**POC scope (this repo):** build pipeline + desktop + Claude + GitHub + the Tailscale
-adb loop on an e2-standard-4. **Phase 2 (later):** emulator/instrumented device grid
-(needs nested virtualization + a bigger machine).
+Everything (SDK, Studio, Gradle, Claude, your checkout) is installed **bare-metal on the
+VM** and baked into a **golden GCE image** for ~1-min spin-up — no Docker. The intended
+loop: spin up a node per GitHub issue (repo auto-cloned + Gradle pre-warmed), work over the
+desktop / Claude, push, then `nuke` to $0.
 
 ## Prerequisites (one-time)
 
@@ -44,10 +45,10 @@ Lock the tailnet so only the VM can reach adb — see `laptop/tailscale-acl-exam
 
 ## Cloud: bake the golden image once, then spin up fast
 
-New nodes boot from a pre-baked **golden image** — Docker + Tailscale + CRD + the
-`android-dev` container image (incl. the Android emulator packages), plus **Android
-Studio**, **Google Chrome**, and **Claude Code** on the host desktop workspace — all baked
-in, so they're ready in ~1 min instead of ~7. Build it once:
+New nodes boot from a pre-baked **golden image** with everything installed bare-metal:
+Tailscale + CRD + XFCE, JDK 17 + the Android SDK (incl. emulator packages), **Android
+Studio**, **Google Chrome**, **Claude Code**, and `gh` — all baked in, so they're ready in
+~1 min instead of ~7. Build it once:
 
 ```bash
 ./vm/install.sh          # guided: bakes the base image, then (interactively) spins up a
@@ -79,7 +80,9 @@ its own tailnet member):
 Workers are headless (SSH/Claude only); the desktop (CRD) is registered on your primary
 node only. Set `ANTHROPIC_API_KEY` in `.env` so `claude` works non-interactively on workers.
 
-Re-run `./vm/install.sh` whenever you change the `Dockerfile` or host provisioning.
+Re-run `./vm/install.sh` whenever you change `vm/startup-script.sh` (the provisioner) or the
+helper scripts. To iterate on `push-build`/`warm-repo` on a live node without a full
+re-bake, use `./vm/push-repo.sh [name]`.
 
 ### Re-bake later without a full reinstall
 
@@ -115,13 +118,9 @@ enter your `CRD_PIN` to connect.
 on boot, so it survives `stop`→`start` with no re-auth. A fresh node from `create.sh` (or
 after a `nuke`) needs its own one-time code — registration is single-use and can't be baked.
 
-Open a terminal on that desktop (or over SSH) and enter the container:
-
-```bash
-sudo docker exec -it -u dev android-dev bash
-claude                    # Claude Code (first run: authenticate)
-gh auth login             # GitHub
-```
+Open a terminal on the desktop (or `./vm/ssh.sh`) — the toolchain is right there on the
+VM: `claude`, `gh`, `adb`, `sdkmanager`, `emulator`, and your checkout in `~/work`. Claude
+and GitHub auth are wired automatically from `.env` (`CLAUDE_CODE_OAUTH_TOKEN`/`GH_TOKEN`).
 
 ## Per-node: auto-clone your app + warm Gradle
 
@@ -137,23 +136,23 @@ GRADLE_WARM_TASK=assembleDebug  # optional (default)
 On `./vm/create.sh`, the node:
 1. gets a **GitHub token** — from `GITHUB_TOKEN` in `.env`, or your local `gh auth token`
    (non-interactive, so fleet workers get it too) — passed via instance metadata and wired
-   into the container's git (`gh auth setup-git`), so private clones/pushes just work;
-2. **clones `GIT_REPO`** into the container's work dir; and
+   into git (`gh auth setup-git`), so private clones/pushes just work;
+2. **clones `GIT_REPO`** into `~/work` on the VM (the desktop user's home); and
 3. **warms Gradle** (`GRADLE_WARM_TASK`) in the background — downloads dependencies and
    spins up the daemon so your first real build is fast.
 
-Steps 2–3 run in the background (log: `~/work/.warm.log` in the container), so the node is
-usable immediately while the build warms. Nothing set? The node just skips this.
+Steps 2–3 run in the background (log: `~/work/.warm.log`), so the node is usable
+immediately while the build warms. Nothing set? The node just skips this. Because it's all
+on the VM's filesystem, Android Studio (on the same desktop) can open `~/work/<repo>`
+directly.
 
 ## The magic loop — build in cloud, install on your desk
 
-Inside the container, in any Gradle project:
+On the VM, in your project (e.g. `~/work/<repo>`):
 
 ```bash
-export LAPTOP_TS_HOST=100.x.y.z         # already set if passed at create time
 push-build                              # ./gradlew assembleDebug + adb install over tailnet
-# or manually:
-export ADB_SERVER_SOCKET=tcp:$LAPTOP_TS_HOST:5037
+# or manually (ADB_SERVER_SOCKET/LAPTOP_TS_HOST are already set from .env at boot):
 adb devices                             # shows the phone plugged into your laptop
 adb install -r app/build/outputs/apk/debug/app-debug.apk
 ```
@@ -182,7 +181,7 @@ Interactive one-offs stay in the terminal: nodes created from the webapp are **h
 | `./vm/stop.sh`     | ~$0.10/GB·mo disk (≈$15/mo at 150GB) | `./vm/start.sh` (seconds) | everything (disk intact) |
 | `./vm/nuke.sh`     | $0           | `./vm/create.sh` (fresh node) | none — see below |
 
-**`stop`** is a pause: the disk (container, work, Studio config, CRD registration) stays,
+**`stop`** is a pause: the disk (your `~/work`, Studio config, CRD registration) stays,
 so `start` resumes in seconds. **`nuke`** is the end of a job: it deletes the instance and
 its disk outright. Nothing is snapshotted — the durable state is the **golden image** plus
 your **pushed git work**. The intended loop is: spin up a node for one GitHub issue, do the
@@ -195,11 +194,10 @@ a full `./vm/install.sh`.
 
 ## Files
 
-- `Dockerfile`, `container/` — the reproducible Android + Claude + gh toolchain.
-- `vm/` — lifecycle: `install · create · fleet · reimage · start · stop · nuke · cleanup · ssh · push-repo · crd-setup`; `startup-script.sh` (builder provisioner) and `startup-golden.sh` (lean per-node boot); `run-container.sh` (baked container launcher); `lib-bake.sh` (shared generalize + image helpers for `install`/`reimage`).
+- `vm/` — lifecycle: `install · create · fleet · reimage · start · stop · nuke · cleanup · ssh · push-repo · crd-setup`; `startup-script.sh` (bare-metal provisioner, baked) and `startup-golden.sh` (per-node boot wiring); `lib-bake.sh` (shared generalize + image helpers for `install`/`reimage`).
+- `scripts/` — `push-build.sh` (build + install-over-tailnet) and `warm-repo.sh` (clone + Gradle warm), both baked to `/usr/local/bin` on the VM.
 - `web/admin.py` — self-contained local admin dashboard (Python stdlib only; wraps the `vm/` scripts).
 - `laptop/` — Tailscale + adb server setup and an ACL example.
-- `scripts/push-build.sh` — build-and-install-over-tailnet (installed as `push-build` in the container).
 
 ## Emulators (KVM / nested virtualization)
 
@@ -213,12 +211,12 @@ NESTED_VIRT=1
 MACHINE=n2-standard-4        # or n2-standard-8 for a grid; must be Intel — NOT n2d/e2/t2
 ```
 
-Then `./vm/create.sh` adds `--enable-nested-virtualization`, the node loads the KVM
-module, and `run-container.sh` passes `/dev/kvm` into the container — so the baked
-`emulator` + `android-34` AVD hardware-accelerate. Studio's emulator on the host desktop
-works too (host `/dev/kvm`). **Cost:** nested virt adds no surcharge; you only pay the
-pricier machine (see below). Container-side `/dev/kvm` passthrough needs the current
-`run-container.sh`, so re-bake (`./vm/install.sh`) or `push-repo.sh` a live node first.
+Then `./vm/create.sh` adds `--enable-nested-virtualization`, the node loads the KVM module
+and opens `/dev/kvm` (udev rule, 0666) — so the baked `emulator` + `android-34` AVD, and
+Android Studio's emulator on the desktop, hardware-accelerate. **Cost:** nested virt adds
+no surcharge; you only pay the pricier machine (see below). Heads-up: even accelerated,
+modern emulators are sluggish on GCP (no GPU → software rendering) — the real-device
+Tailscale/adb loop is usually the better interactive path.
 
 ### Does it cost more?
 

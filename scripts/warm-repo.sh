@@ -1,16 +1,20 @@
 #!/usr/bin/env bash
-# Clone the configured Android repo and warm the Gradle build. Launched in the background
-# by the container entrypoint at node startup, so the container is usable immediately while
-# dependencies download and the Gradle daemon spins up. Logs to ~/work/.warm.log.
+# Clone the configured Android repo into ~/work and warm the Gradle build. Runs as the
+# desktop user (launched in the background by startup-golden.sh at node startup), so the
+# node is usable immediately while dependencies download and the daemon spins up.
 #
-# Reads from the environment (passed via run-container.sh from instance metadata):
-#   GIT_REPO           HTTPS repo URL to clone (required; else this is a no-op)
+# Env (passed by startup-golden.sh from instance metadata):
+#   GIT_REPO           HTTPS repo URL to clone (required; else no-op)
 #   GIT_BRANCH         optional branch to check out
-#   GRADLE_WARM_TASK   Gradle task to run to warm caches/daemon (default: assembleDebug)
+#   GRADLE_WARM_TASK   Gradle task to warm caches/daemon (default: assembleDebug)
+#   GH_TOKEN           GitHub token for private clones/pushes
 set -uo pipefail
 
 [[ -n "${GIT_REPO:-}" ]] || exit 0
-cd /home/dev/work || exit 0
+mkdir -p "$HOME/work" && cd "$HOME/work" || exit 0
+
+# Configure git to use the token for github.com HTTPS (clone + later pushes).
+[[ -n "${GH_TOKEN:-}" ]] && gh auth setup-git 2>/dev/null || true
 
 name="$(basename "${GIT_REPO%.git}")"
 if [[ ! -d "$name/.git" ]]; then

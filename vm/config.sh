@@ -49,7 +49,7 @@ ssh_vm() { local host="$1"; shift; gcloud compute ssh "$host" --zone="$ZONE" --p
 # Block until a remote test-command succeeds on <host>. Retries the SSH connection
 # until the VM is reachable, then loops server-side inside a single session — so a
 # whole boot-wait costs ~one SSH handshake instead of one per poll.
-#   wait_remote "$host" 'command -v docker >/dev/null'
+#   wait_remote "$host" 'test -f /var/lib/android-dev-provisioned'
 wait_remote() {
   local host="$1"; shift
   until ssh_vm "$host" "until $*; do sleep 5; done" >/dev/null 2>&1; do printf '.'; sleep 5; done

@@ -4,5 +4,5 @@
 source "$(dirname "$0")/config.sh"
 NAME="${1:-$INSTANCE}"
 gcloud compute instances start "$NAME" --zone="$ZONE" --project="$PROJECT"
-echo "Started. Tailscale + CRD + the android-dev container come back automatically."
-echo "Enter the container:  ./vm/ssh.sh  then  sudo docker exec -it -u dev android-dev bash"
+echo "Started. Tailscale + CRD come back automatically; the Android toolchain is bare-metal."
+echo "SSH in with:  ./vm/ssh.sh   (project lives in ~/work)"

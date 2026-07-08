@@ -1,43 +1,41 @@
 #!/usr/bin/env bash
 # BUILDER PROVISIONER (one-time). Used only by vm/install.sh on the throwaway builder to
-# install the host software that gets baked into the golden image: Docker, Tailscale, and
-# Chrome Remote Desktop + XFCE. It does NOT run the container or wire per-instance identity
-# — that is startup-golden.sh's job on real nodes. Idempotent.
+# install everything that gets baked into the golden image, ALL BARE-METAL on the VM (no
+# Docker): Tailscale, Chrome Remote Desktop + XFCE, Google Chrome, JDK 17 + the Android
+# SDK, Android Studio, Node + Claude Code, gh. Per-instance wiring is startup-golden.sh's
+# job. Idempotent.
 set -euo pipefail
 exec > >(tee -a /var/log/android-dev-startup.log) 2>&1
 echo "=== provisioning $(date -u) ==="
 
 export DEBIAN_FRONTEND=noninteractive
+ANDROID_API=34
+BUILD_TOOLS=34.0.0
+CMDLINE_TOOLS=11076708          # Android cmdline-tools 11.0
+SDK=/opt/android-sdk
 
-# --- Docker ---------------------------------------------------------------
-if ! command -v docker >/dev/null; then
-  curl -fsSL https://get.docker.com | sh
-  systemctl enable --now docker
-fi
+# --- base tools -----------------------------------------------------------
+apt-get update
+apt-get install -y --no-install-recommends \
+  git curl wget unzip zip ca-certificates gnupg openjdk-17-jdk-headless
 
 # --- Tailscale (install only; nodes join via startup-golden.sh) -----------
-if ! command -v tailscale >/dev/null; then
-  curl -fsSL https://tailscale.com/install.sh | sh
-fi
+command -v tailscale >/dev/null || curl -fsSL https://tailscale.com/install.sh | sh
 
 # --- Desktop + Chrome Remote Desktop --------------------------------------
 # CRD host is installed here; the one-time headless auth is done by YOU over SSH
 # (see README runbook) because it needs a code from remotedesktop.google.com/headless.
 if ! dpkg -s chrome-remote-desktop >/dev/null 2>&1; then
-  apt-get update
   apt-get install -y --no-install-recommends xfce4 xfce4-terminal desktop-base dbus-x11
   curl -fsSL https://dl.google.com/linux/linux_signing_key.pub \
     | gpg --dearmor -o /usr/share/keyrings/chrome-remote-desktop.gpg
   echo "deb [arch=amd64 signed-by=/usr/share/keyrings/chrome-remote-desktop.gpg] https://dl.google.com/linux/chrome-remote-desktop/deb stable main" \
     > /etc/apt/sources.list.d/chrome-remote-desktop.list
   apt-get update && apt-get install -y --no-install-recommends chrome-remote-desktop
-  # Tell CRD to launch XFCE.
   echo "exec /usr/bin/xfce4-session" > /etc/chrome-remote-desktop-session
 fi
 
-# --- Google Chrome on the host desktop ------------------------------------
-# Real .deb (not the Ubuntu snap); also registers x-www-browser so the XFCE
-# panel's browser button works, and gives you a browser for docs / OAuth flows.
+# --- Google Chrome --------------------------------------------------------
 if ! dpkg -s google-chrome-stable >/dev/null 2>&1; then
   curl -fsSL https://dl.google.com/linux/linux_signing_key.pub \
     | gpg --dearmor -o /usr/share/keyrings/google-chrome.gpg
@@ -46,28 +44,57 @@ if ! dpkg -s google-chrome-stable >/dev/null 2>&1; then
   apt-get update && apt-get install -y google-chrome-stable
 fi
 
-# --- Node + Claude Code on the host workspace -----------------------------
-# The container has its own claude; this puts it in the desktop terminal too,
-# alongside Android Studio. Auth (ANTHROPIC_API_KEY) is wired per-node at boot.
+# --- GitHub CLI -----------------------------------------------------------
+if ! command -v gh >/dev/null; then
+  curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
+    | dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
+  echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" \
+    > /etc/apt/sources.list.d/github-cli.list
+  apt-get update && apt-get install -y --no-install-recommends gh
+fi
+
+# --- Node + Claude Code ---------------------------------------------------
 if ! command -v claude >/dev/null; then
-  if ! command -v node >/dev/null; then
-    curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
-    apt-get install -y --no-install-recommends nodejs
-  fi
+  command -v node >/dev/null || { curl -fsSL https://deb.nodesource.com/setup_20.x | bash -; apt-get install -y --no-install-recommends nodejs; }
   npm install -g @anthropic-ai/claude-code && npm cache clean --force
 fi
 
-# --- Android Studio on the host desktop -----------------------------------
-# Studio bundles its own JDK (JBR); its SDK is installed by the first-run wizard
-# (persists on the node disk). Studio's emulator needs KVM — works on an Intel
+# --- Android SDK (bare-metal, system-wide) --------------------------------
+if [[ ! -d "$SDK/platform-tools" ]]; then
+  mkdir -p "$SDK/cmdline-tools"
+  wget -q "https://dl.google.com/android/repository/commandlinetools-linux-${CMDLINE_TOOLS}_latest.zip" -O /tmp/clt.zip
+  unzip -q /tmp/clt.zip -d "$SDK/cmdline-tools" && rm /tmp/clt.zip
+  mv "$SDK/cmdline-tools/cmdline-tools" "$SDK/cmdline-tools/latest"
+  yes | "$SDK/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$SDK" --licenses >/dev/null
+  "$SDK/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$SDK" --install \
+    "platform-tools" "platforms;android-${ANDROID_API}" "build-tools;${BUILD_TOOLS}" \
+    "emulator" "system-images;android-${ANDROID_API};google_apis;x86_64" >/dev/null
+  chmod -R a+rwX "$SDK"          # single-user dev box: any user can build / manage the SDK
+fi
+# System-wide env (see the /etc/bash.bashrc loop below for non-login shells too).
+cat > /etc/profile.d/android.sh <<EOF
+export ANDROID_SDK_ROOT=$SDK
+export ANDROID_HOME=$SDK
+export ANDROID_AVD_HOME=/opt/avd
+export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
+export PATH="$SDK/cmdline-tools/latest/bin:$SDK/platform-tools:$SDK/emulator:\$PATH"
+EOF
+# A ready-to-run AVD in a shared writable location (needs KVM to boot — Intel nested-virt).
+mkdir -p /opt/avd && chmod a+rwX /opt/avd
+if [[ ! -d "/opt/avd/android${ANDROID_API}.avd" ]]; then
+  echo no | ANDROID_AVD_HOME=/opt/avd "$SDK/cmdline-tools/latest/bin/avdmanager" create avd \
+    -n "android${ANDROID_API}" -k "system-images;android-${ANDROID_API};google_apis;x86_64" -d pixel_6 >/dev/null 2>&1 || true
+  chmod -R a+rwX /opt/avd
+fi
+
+# --- Android Studio -------------------------------------------------------
+# Studio bundles its own JDK (JBR). Its emulator needs KVM — works on an Intel
 # nested-virt node (NESTED_VIRT=1 + n2-*), otherwise editing/building/debugging only.
 if [[ ! -d /opt/android-studio ]]; then
-  apt-get install -y --no-install-recommends \
-    libxrender1 libxtst6 libxi6 libxext6 libfreetype6 fontconfig
+  apt-get install -y --no-install-recommends libxrender1 libxtst6 libxi6 libxext6 libfreetype6 fontconfig
   wget -qO /tmp/studio.tar.gz \
     "https://edgedl.me.gvt1.com/android/studio/ide-zips/2026.1.1.10/android-studio-quail1-patch2-linux.tar.gz"
-  tar -xzf /tmp/studio.tar.gz -C /opt/
-  rm -f /tmp/studio.tar.gz
+  tar -xzf /tmp/studio.tar.gz -C /opt/ && rm -f /tmp/studio.tar.gz
   cat > /usr/share/applications/android-studio.desktop <<'DESKTOP'
 [Desktop Entry]
 Name=Android Studio
@@ -80,9 +107,16 @@ DESKTOP
 fi
 
 # --- KVM device access ----------------------------------------------------
-# /dev/kvm is root:kvm 0660 by default; make it world-accessible so the desktop
-# user and the container can run the emulator without kvm-group juggling. (Single-
-# user dev VM — fine.) Applied by udev whenever /dev/kvm appears (Intel nested-virt).
+# /dev/kvm is root:kvm 0660 by default; make it world-accessible so the desktop user can
+# run the emulator without kvm-group juggling. (Single-user dev VM.) Applied by udev.
 echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666"' > /etc/udev/rules.d/99-kvm.rules
 
+# --- make /etc/profile.d reach non-login shells (XFCE terminal) -----------
+grep -q 'androiddevenv profile.d' /etc/bash.bashrc || cat >> /etc/bash.bashrc <<'BRC'
+# androiddevenv: source /etc/profile.d in non-login interactive shells (desktop terminal)
+for _f in /etc/profile.d/*.sh; do [ -r "$_f" ] && . "$_f"; done; unset _f
+BRC
+
+apt-get clean
+touch /var/lib/android-dev-provisioned
 echo "=== provisioning done $(date -u) ==="

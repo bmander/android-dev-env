@@ -6,9 +6,9 @@
 #   C) re-bake the golden image from that configured seed, so every future ./vm/create.sh
 #      stamps it — then delete the seed.
 #
-# Re-run whenever the Dockerfile / host provisioning changes, or to reconfigure the image.
-# Phase B/C are interactive; with no TTY (or no TAILSCALE_AUTHKEY) it stops after the base
-# image and you can configure later with:  create.sh seed -> (configure) -> reimage.sh seed
+# Re-run whenever vm/startup-script.sh (the provisioner) or the helper scripts change, or
+# to reconfigure the image. Phase B/C are interactive; with no TTY (or no TAILSCALE_AUTHKEY)
+# it stops after the base image — configure later with: create.sh seed -> reimage.sh seed
 source "$(dirname "$0")/config.sh"
 source "$(dirname "$0")/lib-bake.sh"
 
@@ -25,19 +25,15 @@ gcloud compute instances create "$BUILDER" \
   --metadata-from-file=startup-script="$REPO_ROOT/vm/startup-script.sh"
   # NB: no tailscale-authkey metadata -> builder never joins the tailnet -> nothing to clean.
 
-echo "== A2 wait for Docker, build the android-dev image + bake the launcher =="
-wait_remote "$BUILDER" 'command -v docker >/dev/null'
-echo " docker ready."
-ssh_vm "$BUILDER" "sudo mkdir -p /opt/androiddevenv && sudo chown \$(whoami) /opt/androiddevenv"
-gcloud compute scp --recurse --zone="$ZONE" --project="$PROJECT" \
-  "$REPO_ROOT/Dockerfile" "$REPO_ROOT/container" "$REPO_ROOT/scripts" "$REPO_ROOT/vm/run-container.sh" \
-  "$BUILDER":/opt/androiddevenv/
-ssh_vm "$BUILDER" "sudo docker build -t android-dev:latest /opt/androiddevenv \
-  && sudo install -m 0755 /opt/androiddevenv/run-container.sh /usr/local/bin/run-android-dev"
+echo "== A2 wait for the provisioner to finish (installs everything bare-metal) =="
+wait_remote "$BUILDER" 'test -f /var/lib/android-dev-provisioned'
+echo " provisioned."
 
-echo "== A3 wait for CRD install to finish =="
-wait_remote "$BUILDER" 'test -x /opt/google/chrome-remote-desktop/start-host'
-echo " CRD present."
+echo "== A3 install the helper scripts (push-build, warm-repo) to /usr/local/bin =="
+gcloud compute scp --zone="$ZONE" --project="$PROJECT" \
+  "$REPO_ROOT/scripts/push-build.sh" "$REPO_ROOT/scripts/warm-repo.sh" "$BUILDER":/tmp/
+ssh_vm "$BUILDER" "sudo install -m 0755 /tmp/push-build.sh /usr/local/bin/push-build \
+  && sudo install -m 0755 /tmp/warm-repo.sh /usr/local/bin/warm-repo && rm -f /tmp/push-build.sh /tmp/warm-repo.sh"
 
 echo "== A4 generalize + bake base image $GOLDEN_IMAGE, delete builder =="
 generalize_instance "$BUILDER"

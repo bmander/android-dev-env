@@ -65,9 +65,9 @@ gcloud compute instances create "$NAME" \
   --metadata=tailscale-authkey="$TAILSCALE_AUTHKEY",laptop-ts-host="${LAPTOP_TS_HOST:-}",anthropic-api-key="${ANTHROPIC_API_KEY:-}",claude-oauth-token="${CLAUDE_CODE_OAUTH_TOKEN:-}",github-token="${GITHUB_TOKEN}",git-repo="${GIT_REPO:-}",git-branch="${GIT_BRANCH:-}",gradle-warm-task="${GRADLE_WARM_TASK:-}" \
   --metadata-from-file=startup-script="$REPO_ROOT/vm/startup-golden.sh"
 
-echo "Waiting for the android-dev container to come up (baked image, no build)…"
-wait_remote "$NAME" 'sudo docker ps --format "{{.Names}}" | grep -qx android-dev'
-echo " container up."
+echo "Waiting for the node to be reachable (baked image, ~1 min)…"
+wait_remote "$NAME" 'true'
+echo " up. (Project clone + Gradle warm run in the background: ~/work/.warm.log)"
 
 # --- Chrome Remote Desktop (primary node only) ----------------------------
 if [[ "${SKIP_CRD:-}" == "1" ]]; then
