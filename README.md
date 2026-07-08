@@ -136,6 +136,23 @@ adb devices                             # shows the phone plugged into your lapt
 adb install -r app/build/outputs/apk/debug/app-debug.apk
 ```
 
+## Admin webapp
+
+A tidy, self-contained local dashboard (Python 3 stdlib only, no deps):
+
+```bash
+python3 web/admin.py            # opens http://127.0.0.1:8787
+```
+
+Shows all instances (status, machine, IP, and a running $/hr total), plus images,
+snapshots, and orphan disks. Buttons: **create a headless node**, **start / stop / nuke**
+per instance, **fleet up/down**, and **cleanup** — with live command output streamed into
+the page. It's **localhost-only** (it runs the `vm/` scripts, so never expose it) and reads
+`PROJECT`/`ZONE` from your `.env` via `config.sh`.
+
+Interactive one-offs stay in the terminal: nodes created from the webapp are **headless**
+(no CRD desktop), and the image bake (`install.sh`) and CRD registration need a TTY.
+
 ## Pause / kill
 
 | Command            | Cost after   | Come back with           | State kept |
@@ -158,6 +175,7 @@ a full `./vm/install.sh`.
 
 - `Dockerfile`, `container/` — the reproducible Android + Claude + gh toolchain.
 - `vm/` — lifecycle: `install · create · fleet · reimage · start · stop · nuke · cleanup · ssh · push-repo · crd-setup`; `startup-script.sh` (builder provisioner) and `startup-golden.sh` (lean per-node boot); `run-container.sh` (baked container launcher); `lib-bake.sh` (shared generalize + image helpers for `install`/`reimage`).
+- `web/admin.py` — self-contained local admin dashboard (Python stdlib only; wraps the `vm/` scripts).
 - `laptop/` — Tailscale + adb server setup and an ACL example.
 - `scripts/push-build.sh` — build-and-install-over-tailnet (installed as `push-build` in the container).
 
