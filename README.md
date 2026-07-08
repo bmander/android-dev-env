@@ -123,6 +123,28 @@ claude                    # Claude Code (first run: authenticate)
 gh auth login             # GitHub
 ```
 
+## Per-node: auto-clone your app + warm Gradle
+
+Point the environment at an Android repo and every node comes up ready to build:
+
+```bash
+# in .env
+GIT_REPO=https://github.com/you/your-android-app.git
+GIT_BRANCH=main                 # optional
+GRADLE_WARM_TASK=assembleDebug  # optional (default)
+```
+
+On `./vm/create.sh`, the node:
+1. gets a **GitHub token** — from `GITHUB_TOKEN` in `.env`, or your local `gh auth token`
+   (non-interactive, so fleet workers get it too) — passed via instance metadata and wired
+   into the container's git (`gh auth setup-git`), so private clones/pushes just work;
+2. **clones `GIT_REPO`** into the container's work dir; and
+3. **warms Gradle** (`GRADLE_WARM_TASK`) in the background — downloads dependencies and
+   spins up the daemon so your first real build is fast.
+
+Steps 2–3 run in the background (log: `~/work/.warm.log` in the container), so the node is
+usable immediately while the build warms. Nothing set? The node just skips this.
+
 ## The magic loop — build in cloud, install on your desk
 
 Inside the container, in any Gradle project:

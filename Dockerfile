@@ -59,5 +59,6 @@ RUN echo "no" | avdmanager create avd -n "android${ANDROID_API}" \
 
 COPY --chown=dev:dev container/entrypoint.sh /usr/local/bin/entrypoint.sh
 COPY --chown=dev:dev scripts/push-build.sh /usr/local/bin/push-build
+COPY --chown=dev:dev scripts/warm-repo.sh /usr/local/bin/warm-repo
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
 CMD ["sleep", "infinity"]

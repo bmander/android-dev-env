@@ -37,12 +37,19 @@ if [[ -z "${CLAUDE_CODE_OAUTH_TOKEN:-}" && -z "${ANTHROPIC_API_KEY:-}" && -t 0 ]
   fi
 fi
 
+# GitHub token to hand to the node (for cloning GIT_REPO): .env's GITHUB_TOKEN, else the
+# local gh login. Non-interactive, so fleet workers get it too. Empty is fine for public repos.
+GITHUB_TOKEN="${GITHUB_TOKEN:-$(gh auth token 2>/dev/null || true)}"
+if [[ -n "${GIT_REPO:-}" && -z "$GITHUB_TOKEN" ]]; then
+  echo "note: GIT_REPO set but no GitHub token (set GITHUB_TOKEN in .env or run 'gh auth login') — private clone will fail." >&2
+fi
+
 echo "Creating $NAME ($MACHINE) from $GOLDEN_IMAGE in $ZONE / $PROJECT …"
 gcloud compute instances create "$NAME" \
   --project="$PROJECT" --zone="$ZONE" --machine-type="$MACHINE" \
   --image="$GOLDEN_IMAGE" --boot-disk-type=pd-balanced --boot-disk-size="${DISK_GB}GB" \
   --labels=environment=development,purpose=android-dev \
-  --metadata=tailscale-authkey="$TAILSCALE_AUTHKEY",laptop-ts-host="${LAPTOP_TS_HOST:-}",anthropic-api-key="${ANTHROPIC_API_KEY:-}",claude-oauth-token="${CLAUDE_CODE_OAUTH_TOKEN:-}" \
+  --metadata=tailscale-authkey="$TAILSCALE_AUTHKEY",laptop-ts-host="${LAPTOP_TS_HOST:-}",anthropic-api-key="${ANTHROPIC_API_KEY:-}",claude-oauth-token="${CLAUDE_CODE_OAUTH_TOKEN:-}",github-token="${GITHUB_TOKEN}",git-repo="${GIT_REPO:-}",git-branch="${GIT_BRANCH:-}",gradle-warm-task="${GRADLE_WARM_TASK:-}" \
   --metadata-from-file=startup-script="$REPO_ROOT/vm/startup-golden.sh"
 
 echo "Waiting for the android-dev container to come up (baked image, no build)…"
