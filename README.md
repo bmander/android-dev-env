@@ -52,18 +52,25 @@ With `.env` filled in (`TAILSCALE_AUTHKEY`, `LAPTOP_TS_HOST`):
 This provisions the VM, installs Docker + Tailscale + CRD, syncs this repo, and builds
 the `android-dev` container.
 
-### First boot (one-time, over SSH)
+### First boot: register Chrome Remote Desktop (one-time per fresh VM)
 
-Chrome Remote Desktop needs a code only you can get:
+The CRD host must be registered once with a Google auth code. The code is single-use
+and needs an interactive "Authorize" click — that part can't be automated. Everything
+else is: the PIN comes from `.env` (`CRD_PIN`), and the registration then persists.
 
 ```bash
-./vm/ssh.sh
-# 1) open https://remotedesktop.google.com/headless , click "Begin" → "Next" →
-#    "Authorize", copy the shown `DISPLAY= ... start-host --code=...` command.
-# 2) run it on the VM, set a 6-digit PIN.
+# 1. open https://remotedesktop.google.com/headless -> Begin -> Next -> Authorize
+# 2. copy the value inside --code="..." from the command it shows, then:
+./vm/crd-setup.sh '4/0Axxxxxxxx...'      # runs start-host on the VM, PIN from .env
 ```
-Then open https://remotedesktop.google.com/access — the `android-dev` desktop appears.
-Open a terminal there (or over SSH) and enter the container:
+Then open https://remotedesktop.google.com/access — the `android-dev` desktop appears;
+enter your `CRD_PIN` to connect.
+
+**You only do this for a brand-new VM.** CRD registration lives on the boot disk and the
+service auto-starts on boot, so it comes back on its own after `stop`→`start` and after
+`nuke`→`restore` (the snapshot includes it). No re-auth needed for those.
+
+Open a terminal on that desktop (or over SSH) and enter the container:
 
 ```bash
 sudo docker exec -it -u dev android-dev bash
@@ -97,7 +104,7 @@ disk, which both `stop` and `nuke`-snapshot preserve.
 ## Files
 
 - `Dockerfile`, `container/` — the reproducible Android + Claude + gh toolchain.
-- `vm/` — lifecycle: `create · start · stop · nuke · restore · ssh · push-repo` + `startup-script.sh`.
+- `vm/` — lifecycle: `create · start · stop · nuke · restore · ssh · push-repo · crd-setup` + `startup-script.sh`.
 - `laptop/` — Tailscale + adb server setup and an ACL example.
 - `scripts/push-build.sh` — build-and-install-over-tailnet (installed as `push-build` in the container).
 

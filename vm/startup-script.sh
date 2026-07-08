@@ -47,6 +47,17 @@ if ! dpkg -s chrome-remote-desktop >/dev/null 2>&1; then
   echo "exec /usr/bin/xfce4-session" > /etc/chrome-remote-desktop-session
 fi
 
+# CRD boot safety net: if this VM was already registered (host config persists on the
+# boot disk across stop/start and snapshot/restore), make sure the per-user service is
+# enabled and running. Registration itself is done once via vm/crd-setup.sh (needs an
+# interactive Google auth code — that step can't be automated).
+for cfg in /home/*/.config/chrome-remote-desktop; do
+  compgen -G "$cfg/host#*.json" >/dev/null || continue
+  u="$(stat -c '%U' "$cfg")"
+  echo "CRD host config found for user '$u' — ensuring service is up."
+  systemctl enable --now "chrome-remote-desktop@$u" || true
+done
+
 # --- android-dev container ------------------------------------------------
 # The container is built+launched by vm/push-repo.sh (called from create.sh), and it
 # runs with `--restart unless-stopped`, so Docker brings it back automatically on every
