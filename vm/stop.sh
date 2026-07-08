@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Pause a node (default $INSTANCE): stop compute billing on a dime. Only the boot disk
-# keeps costing (~$2-3/mo for 60GB). Everything resumes with start.sh.
+# keeps costing (~$0.10/GB/mo, so ~$15/mo at the 150GB default). Resume with start.sh;
+# for $0 use nuke.sh instead.
 #   ./vm/stop.sh [name]
 source "$(dirname "$0")/config.sh"
 NAME="${1:-$INSTANCE}"

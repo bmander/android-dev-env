@@ -140,7 +140,7 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 
 | Command            | Cost after   | Come back with           | State kept |
 |--------------------|--------------|--------------------------|------------|
-| `./vm/stop.sh`     | ~$2–3/mo (disk) | `./vm/start.sh` (seconds) | everything (disk intact) |
+| `./vm/stop.sh`     | ~$0.10/GB·mo disk (≈$15/mo at 150GB) | `./vm/start.sh` (seconds) | everything (disk intact) |
 | `./vm/nuke.sh`     | $0           | `./vm/create.sh` (fresh node) | none — see below |
 
 **`stop`** is a pause: the disk (container, work, Studio config, CRD registration) stays,
