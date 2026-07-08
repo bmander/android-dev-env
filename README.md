@@ -124,7 +124,7 @@ disk, which both `stop` and `nuke`-snapshot preserve.
 ## Files
 
 - `Dockerfile`, `container/` — the reproducible Android + Claude + gh toolchain.
-- `vm/` — lifecycle: `install · create · fleet · start · stop · nuke · restore · ssh · push-repo · crd-setup` + `startup-script.sh` (builder/bootstrap) and `startup-golden.sh` (lean per-node).
+- `vm/` — lifecycle: `install · create · fleet · start · stop · nuke · restore · ssh · push-repo · crd-setup`; `startup-script.sh` (builder provisioner, one-time) and `startup-golden.sh` (lean per-node boot); `run-container.sh` (baked launcher — the single `docker run` source of truth).
 - `laptop/` — Tailscale + adb server setup and an ACL example.
 - `scripts/push-build.sh` — build-and-install-over-tailnet (installed as `push-build` in the container).
 

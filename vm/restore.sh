@@ -9,6 +9,6 @@ gcloud compute instances create "$INSTANCE" \
   --project="$PROJECT" --zone="$ZONE" --machine-type="$MACHINE" \
   --source-snapshot="$SNAPSHOT" --boot-disk-type=pd-balanced \
   --labels=environment=development,purpose=android-dev \
-  --metadata=tailscale-authkey="$TAILSCALE_AUTHKEY",laptop-ts-host="${LAPTOP_TS_HOST:-}" \
-  --metadata-from-file=startup-script="$REPO_ROOT/vm/startup-script.sh"
+  --metadata=tailscale-authkey="$TAILSCALE_AUTHKEY",laptop-ts-host="${LAPTOP_TS_HOST:-}",anthropic-api-key="${ANTHROPIC_API_KEY:-}" \
+  --metadata-from-file=startup-script="$REPO_ROOT/vm/startup-golden.sh"
 echo "Restored. SSH: ./vm/ssh.sh"

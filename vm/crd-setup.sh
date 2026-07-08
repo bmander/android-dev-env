@@ -9,14 +9,15 @@
 #   2. Begin -> Next -> Authorize
 #   3. copy the value inside --code="..." from the command it shows
 # Then:
-#   ./vm/crd-setup.sh '4/0Axxxxxxxx...'
+#   ./vm/crd-setup.sh '4/0Axxxxxxxx...' [name]     # name defaults to $INSTANCE
 source "$(dirname "$0")/config.sh"
 
 CODE="${1:?pass the auth code from https://remotedesktop.google.com/headless as the first argument}"
+NAME="${2:-$INSTANCE}"
 : "${CRD_PIN:?set CRD_PIN in .env}"
 
-echo "Registering $INSTANCE as a CRD host (PIN from .env)…"
-gcloud compute ssh "$INSTANCE" --zone="$ZONE" --project="$PROJECT" --command \
+echo "Registering $NAME as a CRD host (PIN from .env)…"
+ssh_vm "$NAME" \
   "DISPLAY= /opt/google/chrome-remote-desktop/start-host \
      --code='$CODE' \
      --redirect-url='https://remotedesktop.google.com/_/oauthredirect' \

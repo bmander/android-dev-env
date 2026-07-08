@@ -12,9 +12,7 @@ set -euo pipefail
 command -v adb >/dev/null || { echo "adb not found — run laptop/setup-macos.sh" >&2; exit 1; }
 
 echo "Devices (USB):"
-adb kill-server 2>/dev/null || true
-adb start-server >/dev/null 2>&1 || true
-adb devices
+adb devices                        # auto-starts a local server
 adb kill-server 2>/dev/null || true
 
 echo "Starting tailnet-exposed adb server on :5037 (Ctrl-C to stop)…"

@@ -43,7 +43,7 @@ RUN yes | sdkmanager --licenses >/dev/null \
         "system-images;android-${ANDROID_API};google_apis;x86_64" >/dev/null
 
 # Claude Code CLI.
-RUN npm install -g @anthropic-ai/claude-code
+RUN npm install -g @anthropic-ai/claude-code && npm cache clean --force
 
 # Non-root dev user with passwordless sudo.
 RUN useradd -m -s /bin/bash -G sudo dev \

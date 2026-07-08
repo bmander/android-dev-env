@@ -23,10 +23,7 @@ gcloud compute instances create "$NAME" \
   --metadata-from-file=startup-script="$REPO_ROOT/vm/startup-golden.sh"
 
 echo "Waiting for the android-dev container to come up (baked image, no build)…"
-until gcloud compute ssh "$NAME" --zone="$ZONE" --project="$PROJECT" \
-      --command 'sudo docker ps --format "{{.Names}}" | grep -qx android-dev' >/dev/null 2>&1; do
-  printf '.'; sleep 5
-done
+wait_remote "$NAME" 'sudo docker ps --format "{{.Names}}" | grep -qx android-dev'
 echo " container up."
 
 # --- Chrome Remote Desktop (primary node only) ----------------------------
@@ -44,14 +41,14 @@ else
   printf 'Paste the auth code (or the full start-host command), or press Enter to skip: '
   read -r CRD_INPUT
   if [[ -n "$CRD_INPUT" ]]; then
-    if [[ "$CRD_INPUT" == *--code=* ]]; then
-      CODE="$(printf '%s' "$CRD_INPUT" | sed -n 's/.*--code=["'\'']\{0,1\}\([^"'\'' ]*\).*/\1/p')"
-    else
+    if [[ "$CRD_INPUT" == *--code=* ]]; then     # accept a full pasted start-host command
+      CODE="${CRD_INPUT#*--code=}"; CODE="${CODE%% *}"; CODE="${CODE//[\"\']/}"
+    else                                          # ...or a bare code
       CODE="$CRD_INPUT"
     fi
-    INSTANCE="$NAME" "$(dirname "$0")/crd-setup.sh" "$CODE"
+    "$(dirname "$0")/crd-setup.sh" "$CODE" "$NAME"
   else
-    echo "Skipped. Register later with: ./vm/crd-setup.sh '<code>'  (INSTANCE=$NAME)"
+    echo "Skipped. Register later with: ./vm/crd-setup.sh '<code>' $NAME"
   fi
 fi
 

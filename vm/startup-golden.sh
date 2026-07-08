@@ -16,23 +16,11 @@ if [[ -n "$AUTHKEY" ]]; then
   tailscale up --authkey="$AUTHKEY" --hostname="$(hostname)" --ssh --accept-routes || true
 fi
 
-# --- android-dev container (image is baked; just run it) ------------------
-LAPTOP_TS_HOST="$(meta laptop-ts-host)"
-API_KEY="$(meta anthropic-api-key)"
-if docker image inspect android-dev:latest >/dev/null 2>&1; then
-  if ! docker ps -a --format '{{.Names}}' | grep -qx android-dev; then
-    docker run -d --name android-dev --restart unless-stopped --network=host \
-      -e LAPTOP_TS_HOST="${LAPTOP_TS_HOST}" \
-      ${API_KEY:+-e ANTHROPIC_API_KEY="${API_KEY}"} \
-      -v android-dev-work:/home/dev/work \
-      -v android-dev-home:/home/dev/.claude \
-      android-dev:latest
-    echo "android-dev container started."
-  else
-    echo "android-dev container already present (restart policy handles reboots)."
-  fi
+# --- android-dev container (image + launcher baked in) --------------------
+if command -v run-android-dev >/dev/null; then
+  run-android-dev            # single source of truth for the run args (vm/run-container.sh)
 else
-  echo "!! android-dev:latest image missing — is this really the golden image?"
+  echo "!! run-android-dev not found — golden image may be stale; rebuild via ./vm/install.sh"
 fi
 
 # --- Chrome Remote Desktop: resume only if this node was registered -------

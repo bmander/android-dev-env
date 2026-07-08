@@ -36,3 +36,16 @@ require_env() {
     return 1
   fi
 }
+
+# Run a command on a VM over SSH. Shared by every vm/ script so the
+# --zone/--project (and any future IAP/flags) convention lives in one place.
+ssh_vm() { local host="$1"; shift; gcloud compute ssh "$host" --zone="$ZONE" --project="$PROJECT" --command "$*"; }
+
+# Block until a remote test-command succeeds on <host>. Retries the SSH connection
+# until the VM is reachable, then loops server-side inside a single session — so a
+# whole boot-wait costs ~one SSH handshake instead of one per poll.
+#   wait_remote "$host" 'command -v docker >/dev/null'
+wait_remote() {
+  local host="$1"; shift
+  until ssh_vm "$host" "until $*; do sleep 5; done" >/dev/null 2>&1; do printf '.'; sleep 5; done
+}

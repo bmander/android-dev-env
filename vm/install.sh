@@ -10,7 +10,6 @@
 source "$(dirname "$0")/config.sh"
 
 BUILDER="${INSTANCE}-builder"
-ssh_b() { gcloud compute ssh "$BUILDER" --zone="$ZONE" --project="$PROJECT" --command "$1"; }
 
 echo "== 1/6 create builder $BUILDER (ubuntu, full provisioning) =="
 gcloud compute instances create "$BUILDER" \
@@ -21,24 +20,23 @@ gcloud compute instances create "$BUILDER" \
   --metadata-from-file=startup-script="$REPO_ROOT/vm/startup-script.sh"
   # NB: no tailscale-authkey metadata -> builder never joins the tailnet -> nothing to clean.
 
-echo "== 2/6 wait for Docker, build the android-dev image on the builder =="
-until ssh_b "command -v docker >/dev/null" >/dev/null 2>&1; do printf '.'; sleep 10; done
+echo "== 2/6 wait for Docker, build the android-dev image + bake the launcher =="
+wait_remote "$BUILDER" 'command -v docker >/dev/null'
 echo " docker ready."
-ssh_b "sudo mkdir -p /opt/androiddevenv && sudo chown \$(whoami) /opt/androiddevenv"
+ssh_vm "$BUILDER" "sudo mkdir -p /opt/androiddevenv && sudo chown \$(whoami) /opt/androiddevenv"
 gcloud compute scp --recurse --zone="$ZONE" --project="$PROJECT" \
-  "$REPO_ROOT/Dockerfile" "$REPO_ROOT/container" "$REPO_ROOT/scripts" \
+  "$REPO_ROOT/Dockerfile" "$REPO_ROOT/container" "$REPO_ROOT/scripts" "$REPO_ROOT/vm/run-container.sh" \
   "$BUILDER":/opt/androiddevenv/
-ssh_b "sudo docker build -t android-dev:latest /opt/androiddevenv"
+ssh_vm "$BUILDER" "sudo docker build -t android-dev:latest /opt/androiddevenv \
+  && sudo install -m 0755 /opt/androiddevenv/run-container.sh /usr/local/bin/run-android-dev"
 
 echo "== 3/6 wait for CRD install to finish (baked for the primary node) =="
-until ssh_b "test -x /opt/google/chrome-remote-desktop/start-host" >/dev/null 2>&1; do printf '.'; sleep 10; done
+wait_remote "$BUILDER" 'test -x /opt/google/chrome-remote-desktop/start-host'
 echo " CRD present."
 
 echo "== 4/6 generalize (strip per-machine identity) =="
-ssh_b '
+ssh_vm "$BUILDER" '
   set -e
-  sudo docker rm -f android-dev 2>/dev/null || true          # keep the image, drop any container
-  sudo tailscale logout 2>/dev/null || true                  # no-op (builder never joined)
   sudo rm -f /var/lib/tailscale/tailscaled.state 2>/dev/null || true
   sudo rm -rf /home/*/.config/chrome-remote-desktop 2>/dev/null || true   # no CRD host baked
   sudo truncate -s 0 /etc/machine-id                         # regenerated per instance
