@@ -26,6 +26,10 @@ fi
   OAUTH_TOKEN="$(meta claude-oauth-token)"
   [[ -n "$OAUTH_TOKEN" ]] && printf 'export CLAUDE_CODE_OAUTH_TOKEN=%q\n' "$OAUTH_TOKEN"
 } > /etc/profile.d/claude-auth.sh
+# /etc/profile.d is sourced only by LOGIN shells; the XFCE desktop terminal opens a
+# non-login interactive shell, so also source it from /etc/bash.bashrc.
+grep -q claude-auth.sh /etc/bash.bashrc 2>/dev/null || \
+  echo '[ -f /etc/profile.d/claude-auth.sh ] && . /etc/profile.d/claude-auth.sh' >> /etc/bash.bashrc
 
 # Load KVM if this machine has nested virtualization (no-op otherwise) so /dev/kvm
 # appears — run-container.sh then passes it to the container for emulator acceleration.
