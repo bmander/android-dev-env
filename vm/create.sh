@@ -14,12 +14,35 @@ if ! gcloud compute images describe "$GOLDEN_IMAGE" --project="$PROJECT" >/dev/n
   exit 1
 fi
 
+# --- Claude Code auth: long-lived subscription OAuth token -----------------
+# Minted once on this machine with `claude setup-token`, cached in .env, then reused
+# for every node (including headless fleet workers). Skipped if you already set
+# ANTHROPIC_API_KEY, or if there's no TTY / no local claude (e.g. fleet.sh workers).
+if [[ -z "${CLAUDE_CODE_OAUTH_TOKEN:-}" && -z "${ANTHROPIC_API_KEY:-}" && -t 0 ]] && command -v claude >/dev/null; then
+  echo
+  echo "No Claude auth in .env — minting a long-lived token with 'claude setup-token'"
+  echo "(requires a Claude subscription). Complete the browser authorization it shows."
+  tokout="$(mktemp)"
+  claude setup-token 2>&1 | tee "$tokout" || true
+  CLAUDE_CODE_OAUTH_TOKEN="$(grep -oE 'sk-ant-oat[0-9A-Za-z_-]+' "$tokout" | tail -1 || true)"
+  rm -f "$tokout"
+  if [[ -z "$CLAUDE_CODE_OAUTH_TOKEN" ]]; then
+    printf 'Paste the long-lived token shown above (or press Enter to skip): '
+    read -r CLAUDE_CODE_OAUTH_TOKEN
+  fi
+  if [[ -n "$CLAUDE_CODE_OAUTH_TOKEN" ]] && ! grep -q '^CLAUDE_CODE_OAUTH_TOKEN=' "$REPO_ROOT/.env" 2>/dev/null; then
+    printf '\n# Long-lived Claude Code OAuth token (from `claude setup-token`)\nCLAUDE_CODE_OAUTH_TOKEN=%s\n' \
+      "$CLAUDE_CODE_OAUTH_TOKEN" >> "$REPO_ROOT/.env"
+    echo "Cached CLAUDE_CODE_OAUTH_TOKEN in .env — future nodes reuse it non-interactively."
+  fi
+fi
+
 echo "Creating $NAME ($MACHINE) from $GOLDEN_IMAGE in $ZONE / $PROJECT …"
 gcloud compute instances create "$NAME" \
   --project="$PROJECT" --zone="$ZONE" --machine-type="$MACHINE" \
   --image="$GOLDEN_IMAGE" --boot-disk-type=pd-balanced \
   --labels=environment=development,purpose=android-dev \
-  --metadata=tailscale-authkey="$TAILSCALE_AUTHKEY",laptop-ts-host="${LAPTOP_TS_HOST:-}",anthropic-api-key="${ANTHROPIC_API_KEY:-}" \
+  --metadata=tailscale-authkey="$TAILSCALE_AUTHKEY",laptop-ts-host="${LAPTOP_TS_HOST:-}",anthropic-api-key="${ANTHROPIC_API_KEY:-}",claude-oauth-token="${CLAUDE_CODE_OAUTH_TOKEN:-}" \
   --metadata-from-file=startup-script="$REPO_ROOT/vm/startup-golden.sh"
 
 echo "Waiting for the android-dev container to come up (baked image, no build)…"

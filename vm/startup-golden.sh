@@ -17,13 +17,16 @@ if [[ -n "$AUTHKEY" ]]; then
 fi
 
 # --- Claude Code auth for host workspace shells ---------------------------
-# The container gets ANTHROPIC_API_KEY via run-container.sh; this makes it available
-# to the desktop terminal too. If unset, `claude` falls back to interactive login.
-API_KEY="$(meta anthropic-api-key)"
-if [[ -n "$API_KEY" ]]; then
-  printf 'export ANTHROPIC_API_KEY=%q\n' "$API_KEY" > /etc/profile.d/anthropic-api-key.sh
-  chmod 644 /etc/profile.d/anthropic-api-key.sh
-fi
+# The container gets these via run-container.sh; this makes them available to the
+# desktop terminal too — an API key and/or the long-lived subscription OAuth token
+# (from `claude setup-token`). If neither is set, `claude` falls back to login.
+{
+  API_KEY="$(meta anthropic-api-key)"
+  [[ -n "$API_KEY" ]] && printf 'export ANTHROPIC_API_KEY=%q\n' "$API_KEY"
+  OAUTH_TOKEN="$(meta claude-oauth-token)"
+  [[ -n "$OAUTH_TOKEN" ]] && printf 'export CLAUDE_CODE_OAUTH_TOKEN=%q\n' "$OAUTH_TOKEN"
+} > /etc/profile.d/claude-auth.sh
+chmod 644 /etc/profile.d/claude-auth.sh
 
 # --- android-dev container (image + launcher baked in) --------------------
 if command -v run-android-dev >/dev/null; then
