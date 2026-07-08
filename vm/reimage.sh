@@ -31,4 +31,4 @@ bake_golden "$SEED"
 echo
 echo "Done — new ./vm/create.sh nodes now stamp $SEED's configured state."
 echo "$SEED is stopped and spent; delete it when you're satisfied:"
-echo "  gcloud compute instances delete $SEED --zone=$ZONE --project=$PROJECT"
+echo "  ./vm/nuke.sh $SEED"

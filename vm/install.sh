@@ -42,7 +42,7 @@ echo " CRD present."
 echo "== A4 generalize + bake base image $GOLDEN_IMAGE, delete builder =="
 generalize_instance "$BUILDER"
 bake_golden "$BUILDER"
-gcloud compute instances delete "$BUILDER" --zone="$ZONE" --project="$PROJECT" -q
+delete_instances "$BUILDER"
 echo "Base golden image ready."
 
 # ===== B/C. configure a seed graphically, then re-bake ====================
@@ -77,7 +77,7 @@ read -r -p "When $SEED is configured the way you want, press Enter to bake it in
 echo "== C re-bake $GOLDEN_IMAGE from the configured seed, delete seed =="
 generalize_instance "$SEED"
 bake_golden "$SEED"
-gcloud compute instances delete "$SEED" --zone="$ZONE" --project="$PROJECT" --delete-disks=all -q
+delete_instances "$SEED"
 
 echo
 echo "Done. '$GOLDEN_IMAGE' now includes your configured setup. New nodes: ./vm/create.sh [name]"

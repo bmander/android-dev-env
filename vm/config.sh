@@ -53,3 +53,6 @@ wait_remote() {
   local host="$1"; shift
   until ssh_vm "$host" "until $*; do sleep 5; done" >/dev/null 2>&1; do printf '.'; sleep 5; done
 }
+
+# Delete one or more instances (and their disks) — the teardown convention in one place.
+delete_instances() { gcloud compute instances delete "$@" --zone="$ZONE" --project="$PROJECT" --delete-disks=all -q; }

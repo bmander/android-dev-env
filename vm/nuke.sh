@@ -7,5 +7,5 @@
 source "$(dirname "$0")/config.sh"
 NAME="${1:-$INSTANCE}"
 
-gcloud compute instances delete "$NAME" --zone="$ZONE" --project="$PROJECT" --delete-disks=all -q
+delete_instances "$NAME"
 echo "$NAME is gone (\$0). Spin up a fresh one with ./vm/create.sh."

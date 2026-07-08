@@ -27,7 +27,7 @@ case "$CMD" in
       --project="$PROJECT" --filter="name~^${BASE}- AND zone:($ZONE)" --format="value(name)")
     [[ ${#NODES[@]} -gt 0 ]] || { echo "no nodes matching ${BASE}-*"; exit 0; }
     printf 'deleting: %s\n' "${NODES[@]}"
-    gcloud compute instances delete "${NODES[@]}" --zone="$ZONE" --project="$PROJECT" -q
+    delete_instances "${NODES[@]}"
     ;;
   list)
     BASE="${2:-android-dev}"

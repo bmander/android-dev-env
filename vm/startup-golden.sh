@@ -26,7 +26,6 @@ fi
   OAUTH_TOKEN="$(meta claude-oauth-token)"
   [[ -n "$OAUTH_TOKEN" ]] && printf 'export CLAUDE_CODE_OAUTH_TOKEN=%q\n' "$OAUTH_TOKEN"
 } > /etc/profile.d/claude-auth.sh
-chmod 644 /etc/profile.d/claude-auth.sh
 
 # --- android-dev container (image + launcher baked in) --------------------
 if command -v run-android-dev >/dev/null; then
