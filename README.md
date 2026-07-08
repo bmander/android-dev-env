@@ -73,6 +73,23 @@ node only. Set `ANTHROPIC_API_KEY` in `.env` so `claude` works non-interactively
 
 Re-run `./vm/install.sh` whenever you change the `Dockerfile` or host provisioning.
 
+### Bake a graphically-configured Android Studio into the image
+
+`install.sh` bakes the Studio *binary*, but its SDK/licenses/prefs get set up by the
+first-run wizard. To do that **once** and stamp it onto every future node:
+
+```bash
+./vm/create.sh seed        # boot a node from the current golden image
+# connect at remotedesktop.google.com/access, launch Android Studio,
+# and click through its setup wizard (SDK, licenses, preferences)
+./vm/reimage.sh seed       # re-bake the golden image from that configured node
+./vm/create.sh             # new nodes now come up with Studio ready
+```
+
+`reimage.sh` keeps the configured home dir (`~/Android/Sdk`, `~/.config/Google/…`, AVDs)
+and strips only per-machine identity. (CRD registration is single-use, so each node still
+does its one-time code.) The same trick stamps *any* GUI setup — not just Studio.
+
 ### First boot: register Chrome Remote Desktop (one-time per fresh VM)
 
 The CRD host must be registered once with a Google auth code. The code is single-use
@@ -125,7 +142,7 @@ disk, which both `stop` and `nuke`-snapshot preserve.
 ## Files
 
 - `Dockerfile`, `container/` — the reproducible Android + Claude + gh toolchain.
-- `vm/` — lifecycle: `install · create · fleet · start · stop · nuke · restore · ssh · push-repo · crd-setup`; `startup-script.sh` (builder provisioner, one-time) and `startup-golden.sh` (lean per-node boot); `run-container.sh` (baked launcher — the single `docker run` source of truth).
+- `vm/` — lifecycle: `install · create · fleet · reimage · start · stop · nuke · restore · ssh · push-repo · crd-setup`; `startup-script.sh` (builder provisioner) and `startup-golden.sh` (lean per-node boot); `run-container.sh` (baked container launcher); `lib-bake.sh` (shared generalize + image helpers for `install`/`reimage`).
 - `laptop/` — Tailscale + adb server setup and an ACL example.
 - `scripts/push-build.sh` — build-and-install-over-tailnet (installed as `push-build` in the container).
 

@@ -8,6 +8,7 @@
 #
 # Run once, and again whenever the Dockerfile or host provisioning changes.
 source "$(dirname "$0")/config.sh"
+source "$(dirname "$0")/lib-bake.sh"
 
 BUILDER="${INSTANCE}-builder"
 
@@ -35,27 +36,14 @@ wait_remote "$BUILDER" 'test -x /opt/google/chrome-remote-desktop/start-host'
 echo " CRD present."
 
 echo "== 4/6 generalize (strip per-machine identity) =="
-ssh_vm "$BUILDER" '
-  set -e
-  sudo rm -f /var/lib/tailscale/tailscaled.state 2>/dev/null || true
-  sudo rm -rf /home/*/.config/chrome-remote-desktop 2>/dev/null || true   # no CRD host baked
-  sudo truncate -s 0 /etc/machine-id                         # regenerated per instance
-  sudo rm -f /etc/ssh/ssh_host_* 2>/dev/null || true         # GCE regenerates on boot
-  sudo cloud-init clean --logs 2>/dev/null || true
-  sudo rm -f /var/log/android-dev-startup.log
-  sudo apt-get clean
-  echo "generalized."
-'
+generalize_instance "$BUILDER"
 
 echo "== 5/6 stop builder and create image $GOLDEN_IMAGE =="
-gcloud compute instances stop "$BUILDER" --zone="$ZONE" --project="$PROJECT"
-gcloud compute images delete "$GOLDEN_IMAGE" --project="$PROJECT" -q 2>/dev/null || true
-gcloud compute images create "$GOLDEN_IMAGE" \
-  --project="$PROJECT" --source-disk="$BUILDER" --source-disk-zone="$ZONE" \
-  --family=android-dev --labels=purpose=android-dev-golden
+bake_golden "$BUILDER"
 
 echo "== 6/6 delete builder =="
 gcloud compute instances delete "$BUILDER" --zone="$ZONE" --project="$PROJECT" -q
 
 echo
 echo "Done. Golden image '$GOLDEN_IMAGE' ready. New nodes: ./vm/create.sh [name]"
+echo "To bake a graphically-configured Android Studio into it, see ./vm/reimage.sh."
