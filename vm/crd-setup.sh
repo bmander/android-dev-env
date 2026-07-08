@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Register the VM as a Chrome Remote Desktop host, non-interactively, using CRD_PIN
-# from .env. You only need this for a BRAND-NEW VM: the registration persists on the
-# boot disk across stop/start and snapshot/restore, and the systemd service auto-starts
-# on every boot, so CRD comes back on its own after those.
+# from .env. You need this once per node: the registration persists on the boot disk
+# across stop/start (the systemd service auto-starts on boot), so CRD comes back on its
+# own after a pause. A fresh node (create.sh) does need its own one-time code.
 #
 # The auth code is the one thing that can't be automated (single-use Google OAuth):
 #   1. open  https://remotedesktop.google.com/headless

@@ -26,7 +26,6 @@ export MACHINE="${MACHINE:-e2-standard-4}"     # 4 vCPU / 16GB
 export DISK_GB="${DISK_GB:-60}"
 export IMAGE_FAMILY="${IMAGE_FAMILY:-ubuntu-2204-lts}"
 export IMAGE_PROJECT="${IMAGE_PROJECT:-ubuntu-os-cloud}"
-export SNAPSHOT="${SNAPSHOT:-android-dev-snap}"
 export GOLDEN_IMAGE="${GOLDEN_IMAGE:-android-dev-golden}"
 # The bake builder is throwaway and short-lived, so make it beefy (~pennies): a
 # full-speed n2 + SSD disk speeds the dpkg/unzip/CPU parts of the build. (Downloads

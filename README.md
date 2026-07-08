@@ -104,9 +104,9 @@ else is: the PIN comes from `.env` (`CRD_PIN`), and the registration then persis
 Then open https://remotedesktop.google.com/access — the `android-dev` desktop appears;
 enter your `CRD_PIN` to connect.
 
-**You only do this for a brand-new VM.** CRD registration lives on the boot disk and the
-service auto-starts on boot, so it comes back on its own after `stop`→`start` and after
-`nuke`→`restore` (the snapshot includes it). No re-auth needed for those.
+**One code per node.** CRD registration lives on the boot disk and the service auto-starts
+on boot, so it survives `stop`→`start` with no re-auth. A fresh node from `create.sh` (or
+after a `nuke`) needs its own one-time code — registration is single-use and can't be baked.
 
 Open a terminal on that desktop (or over SSH) and enter the container:
 
@@ -129,20 +129,23 @@ adb devices                             # shows the phone plugged into your lapt
 adb install -r app/build/outputs/apk/debug/app-debug.apk
 ```
 
-## Pause / resume / kill
+## Pause / kill
 
-| Command            | Cost while paused | Resume        | State kept |
-|--------------------|-------------------|---------------|------------|
-| `./vm/stop.sh`     | ~$2–3/mo (disk)   | `./vm/start.sh` (seconds) | everything |
-| `./vm/nuke.sh`     | ~$0 (snapshot)    | `./vm/restore.sh` (minutes) | everything (from snapshot) |
+| Command            | Cost after   | Come back with           | State kept |
+|--------------------|--------------|--------------------------|------------|
+| `./vm/stop.sh`     | ~$2–3/mo (disk) | `./vm/start.sh` (seconds) | everything (disk intact) |
+| `./vm/nuke.sh`     | $0           | `./vm/create.sh` (fresh node) | none — see below |
 
-Your work lives in Docker volumes (`android-dev-work`, `android-dev-home`) on the boot
-disk, which both `stop` and `nuke`-snapshot preserve.
+**`stop`** is a pause: the disk (container, work, Studio config, CRD registration) stays,
+so `start` resumes in seconds. **`nuke`** is the end of a job: it deletes the instance and
+its disk outright. Nothing is snapshotted — the durable state is the **golden image** plus
+your **pushed git work**. The intended loop is: spin up a node for one GitHub issue, do the
+work, push, then `nuke` all the way down to $0.
 
 ## Files
 
 - `Dockerfile`, `container/` — the reproducible Android + Claude + gh toolchain.
-- `vm/` — lifecycle: `install · create · fleet · reimage · start · stop · nuke · restore · ssh · push-repo · crd-setup`; `startup-script.sh` (builder provisioner) and `startup-golden.sh` (lean per-node boot); `run-container.sh` (baked container launcher); `lib-bake.sh` (shared generalize + image helpers for `install`/`reimage`).
+- `vm/` — lifecycle: `install · create · fleet · reimage · start · stop · nuke · ssh · push-repo · crd-setup`; `startup-script.sh` (builder provisioner) and `startup-golden.sh` (lean per-node boot); `run-container.sh` (baked container launcher); `lib-bake.sh` (shared generalize + image helpers for `install`/`reimage`).
 - `laptop/` — Tailscale + adb server setup and an ACL example.
 - `scripts/push-build.sh` — build-and-install-over-tailnet (installed as `push-build` in the container).
 
