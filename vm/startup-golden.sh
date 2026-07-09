@@ -26,10 +26,9 @@ fi
   [[ -n "$OAUTH_TOKEN" ]] && printf 'export CLAUDE_CODE_OAUTH_TOKEN=%q\n' "$OAUTH_TOKEN"
 } > /etc/profile.d/claude-auth.sh
 
-LAPTOP_TS_HOST="$(meta laptop-ts-host)"
-if [[ -n "$LAPTOP_TS_HOST" ]]; then
-  { echo "export LAPTOP_TS_HOST=${LAPTOP_TS_HOST}"
-    echo "export ADB_SERVER_SOCKET=tcp:${LAPTOP_TS_HOST}:5037"; } > /etc/profile.d/adb.sh
+PHONE_TS_HOST="$(meta phone-ts-host)"
+if [[ -n "$PHONE_TS_HOST" ]]; then
+  echo "export PHONE_TS_HOST=${PHONE_TS_HOST}" > /etc/profile.d/adb.sh
 fi
 
 GH_TOKEN="$(meta github-token)"

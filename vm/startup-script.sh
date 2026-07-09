@@ -74,12 +74,20 @@ if [[ ! -d "$SDK/platform-tools" ]]; then
     "emulator" "system-images;android-${ANDROID_API};google_apis;x86_64" >/dev/null
   chmod -R a+rwX "$SDK"          # single-user dev box: any user can build / manage the SDK
 fi
+# Shared adb client key baked into the image: every node presents the same identity, so
+# you authorize the phone once ("always allow") and all future nodes are trusted.
+if [[ ! -f /etc/android/adbkey ]]; then
+  mkdir -p /etc/android
+  HOME=/etc/android "$SDK/platform-tools/adb" keygen /etc/android/adbkey >/dev/null 2>&1 || true
+  chmod 644 /etc/android/adbkey /etc/android/adbkey.pub 2>/dev/null || true
+fi
 # System-wide env (see the /etc/bash.bashrc loop below for non-login shells too).
 cat > /etc/profile.d/android.sh <<EOF
 export ANDROID_SDK_ROOT=$SDK
 export ANDROID_HOME=$SDK
 export ANDROID_AVD_HOME=/opt/avd
 export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
+export ADB_VENDOR_KEYS=/etc/android/adbkey
 export PATH="$SDK/cmdline-tools/latest/bin:$SDK/platform-tools:$SDK/emulator:\$PATH"
 EOF
 # A ready-to-run AVD in a shared writable location (needs KVM to boot — Intel nested-virt).

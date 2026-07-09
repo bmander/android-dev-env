@@ -6,12 +6,11 @@ into your **laptop** over Tailscale. Pause it to near-zero (`stop`) or literal $
 (`nuke`) whenever you want.
 
 ```
-┌─ Laptop ───────────────┐        ┌─ GCE VM: android-dev (bare-metal, no Docker) ─┐
-│ Tailscale node         │        │ Tailscale · Chrome Remote Desktop + XFCE      │
-│ adb server :5037       │◀─ Tailscale ─▶ JDK17 · Android SDK · Studio · gh ·     │
-│ USB → phone            │ MagicDNS│   Claude · Chrome · your repo in ~/work       │
+┌─ Phone (tailnet node) ─┐        ┌─ GCE VM: android-dev (bare-metal, no Docker) ─┐
+│ adb TCP :5555          │◀─ Tailscale ─▶ JDK17 · Android SDK · Studio · gh ·     │
+│ Tailscale ON           │ direct  │   Claude · Chrome · your repo in ~/work       │
 └────────────────────────┘        └───────────────────────────────────────────────┘
-      install here                       build here; `adb install` streams down
+   `adb install` lands here            build here; VM connects straight to the phone
 ```
 
 Everything (SDK, Studio, Gradle, Claude, your checkout) is installed **bare-metal on the
@@ -26,22 +25,27 @@ desktop / Claude, push, then `nuke` to $0.
 - `gcloud` authenticated on a billing-enabled project (already: `reclamation-game`).
 - Configure secrets/overrides once in a gitignored `.env`:
   ```bash
-  cp .env.example .env      # then edit: TAILSCALE_AUTHKEY, LAPTOP_TS_HOST
+  cp .env.example .env      # then edit: TAILSCALE_AUTHKEY, PHONE_TS_HOST
   ```
   Every `vm/` script auto-loads `.env` (via `vm/config.sh`). `.env` is the source of
   truth — it overrides the shell environment; the built-in defaults fill anything
   left unset.
 
-## Laptop setup
+## Phone setup (adb over Tailscale)
+
+The VM installs builds by connecting **straight to your phone** over Tailscale — the phone
+is a tailnet node running adb in TCP mode, so no laptop adb server is involved (Android
+Studio on your laptop is left alone).
 
 ```bash
-./laptop/setup-macos.sh          # installs Tailscale + adb
-# sign into Tailscale, then:
-tailscale ip -4                  # note this laptop's tailnet IP  -> LAPTOP_TS_HOST
-# plug in phone, enable USB debugging, then:
-./laptop/adb-server.sh           # exposes adb to the tailnet (read the SECURITY note)
+./laptop/setup-macos.sh          # installs Tailscale + adb (adb only for the one-time flip)
+# 1. Tailscale ON on the phone (same account); note its tailnet IP -> PHONE_TS_HOST in .env
+# 2. enable USB debugging, plug in once, then flip adb to TCP:
+adb tcpip 5555                   # resets on reboot; or use Android "Wireless debugging"
 ```
-Lock the tailnet so only the VM can reach adb — see `laptop/tailscale-acl-example.json`.
+Keep Tailscale on the phone whenever you want builds. Lock it down so only the dev nodes
+reach the phone's adb — see `laptop/tailscale-acl-example.json`. The golden image ships a
+shared adb key, so you tap **"Always allow"** on the phone once and all nodes are trusted.
 
 ## Cloud: bake the golden image once, then spin up fast
 
@@ -146,14 +150,14 @@ immediately while the build warms. Nothing set? The node just skips this. Becaus
 on the VM's filesystem, Android Studio (on the same desktop) can open `~/work/<repo>`
 directly.
 
-## The magic loop — build in cloud, install on your desk
+## The magic loop — build in cloud, install on your phone
 
 On the VM, in your project (e.g. `~/work/<repo>`):
 
 ```bash
-push-build                              # ./gradlew assembleDebug + adb install over tailnet
-# or manually (ADB_SERVER_SOCKET/LAPTOP_TS_HOST are already set from .env at boot):
-adb devices                             # shows the phone plugged into your laptop
+push-build                              # assembleDebug + adb connect $PHONE_TS_HOST:5555 + install
+# or manually (PHONE_TS_HOST is set from .env at boot):
+adb connect $PHONE_TS_HOST:5555         # the phone over tailscale
 adb install -r app/build/outputs/apk/debug/app-debug.apk
 ```
 
@@ -197,7 +201,7 @@ a full `./vm/install.sh`.
 - `vm/` — lifecycle: `install · create · fleet · reimage · start · stop · nuke · cleanup · ssh · push-repo · crd-setup`; `startup-script.sh` (bare-metal provisioner, baked) and `startup-golden.sh` (per-node boot wiring); `lib-bake.sh` (shared generalize + image helpers for `install`/`reimage`).
 - `scripts/` — `push-build.sh` (build + install-over-tailnet) and `warm-repo.sh` (clone + Gradle warm), both baked to `/usr/local/bin` on the VM.
 - `web/admin.py` — self-contained local admin dashboard (Python stdlib only; wraps the `vm/` scripts).
-- `laptop/` — Tailscale + adb server setup and an ACL example.
+- `laptop/` — one-time phone/adb-over-Tailscale setup (`setup-macos.sh`) and an ACL example.
 
 ## Emulators (KVM / nested virtualization)
 
