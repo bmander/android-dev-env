@@ -3,6 +3,43 @@
 #   ./vm/create.sh [name]        # default name: $INSTANCE (android-dev)
 # Requires a reusable TAILSCALE_AUTHKEY in .env. CRD is offered interactively unless
 # SKIP_CRD=1 (fleet workers set that; see vm/fleet.sh).
+case "${1:-}" in
+  -h|--help)
+    cat <<'EOF'
+Usage: ./vm/create.sh [NAME]
+
+Create an android-dev VM node from the golden image (~1 min boot). Config comes from .env
+(see .env.example); TAILSCALE_AUTHKEY is required. Once up, the node prompts once for the
+Chrome Remote Desktop auth code (skip with SKIP_CRD=1), then on boot clones $GIT_REPO into
+~/work, warms Gradle, and wires phone-adb / Claude / GitHub auth from your .env.
+
+Arguments:
+  NAME                    instance name (default: $INSTANCE, i.e. android-dev)
+
+Options:
+  -h, --help              show this help and exit
+
+Key .env knobs:
+  TAILSCALE_AUTHKEY       required, reusable Tailscale auth key
+  PHONE_TS_HOST           phone's tailscale IP for the adb install loop
+  MACHINE                 machine type (default e2-standard-4)
+  NESTED_VIRT=1           enable KVM for emulators (Intel machine only)
+  DISK_GB                 boot disk size in GB (default 150)
+  GIT_REPO / GIT_BRANCH   repo auto-cloned + Gradle-warmed at launch
+  GITHUB_TOKEN            GitHub token (else taken from local `gh auth token`)
+  CLAUDE_CODE_OAUTH_TOKEN / ANTHROPIC_API_KEY    Claude auth
+
+Env (not .env):
+  SKIP_CRD=1              headless node — skip the desktop-registration prompt
+
+Examples:
+  ./vm/create.sh                  # primary node named android-dev
+  ./vm/create.sh issue-1234       # a node for one GitHub issue
+  SKIP_CRD=1 ./vm/create.sh w-1   # a headless worker
+EOF
+    exit 0 ;;
+esac
+
 source "$(dirname "$0")/config.sh"
 require_env
 
