@@ -109,6 +109,15 @@ gcloud compute instances create "$NAME" \
 
 echo "Waiting for the node to be reachable (baked image, ~1 min)…"
 wait_remote "$NAME" 'true'
+
+# Finish provisioning YOUR login user before handing off, so the first `./vm/ssh.sh` is
+# ready — no first-login race where Claude installs in the background. `wait_remote` above
+# connected as (and thus created) the same account you SSH in as; Claude is baked into
+# /etc/skel, but if that user didn't get it (skel miss / older image), install it now,
+# synchronously, rather than lazily on your first interactive login.
+echo "Finishing setup for your login user (Claude)…"
+ssh_vm "$NAME" 'test -x "$HOME/.local/bin/claude" || curl -fsSL https://claude.ai/install.sh | bash >/dev/null 2>&1' \
+  || echo "  note: couldn't pre-install Claude; it'll install on first login instead." >&2
 echo " up. (Project clone + Gradle warm run in the background: ~/work/.warm.log)"
 
 # --- Chrome Remote Desktop (primary node only) ----------------------------
