@@ -61,7 +61,9 @@ echo 'export PATH="$HOME/.local/bin:$PATH"' > /etc/profile.d/local-bin.sh
 cat > /etc/profile.d/zz-claude.sh <<'EOF'
 if [ ! -x "$HOME/.local/bin/claude" ] && command -v curl >/dev/null 2>&1 && [ ! -e "$HOME/.claude-installing" ]; then
   touch "$HOME/.claude-installing"
-  ( curl -fsSL https://claude.ai/install.sh | bash; rm -f "$HOME/.claude-installing" ) >/dev/null 2>&1 &
+  # nohup + </dev/null so it survives the login shell exiting (e.g. into tmux); the marker
+  # is removed whether the install succeeds or fails, so a retry isn't blocked next login.
+  nohup sh -c 'curl -fsSL https://claude.ai/install.sh | bash; rm -f "$HOME/.claude-installing"' </dev/null >/dev/null 2>&1 &
 fi
 EOF
 
