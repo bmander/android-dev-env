@@ -29,11 +29,14 @@ echo "== A2 wait for the provisioner to finish (installs everything bare-metal) 
 wait_remote "$BUILDER" 'test -f /var/lib/android-dev-provisioned'
 echo " provisioned."
 
-echo "== A3 install the helper scripts (push-build, warm-repo) to /usr/local/bin =="
+echo "== A3 install helper scripts + Ghostty terminfo =="
 gcloud compute scp --zone="$ZONE" --project="$PROJECT" \
-  "$REPO_ROOT/scripts/push-build.sh" "$REPO_ROOT/scripts/warm-repo.sh" "$BUILDER":/tmp/
+  "$REPO_ROOT/scripts/push-build.sh" "$REPO_ROOT/scripts/warm-repo.sh" \
+  "$REPO_ROOT/vm/xterm-ghostty.terminfo" "$BUILDER":/tmp/
 ssh_vm "$BUILDER" "sudo install -m 0755 /tmp/push-build.sh /usr/local/bin/push-build \
-  && sudo install -m 0755 /tmp/warm-repo.sh /usr/local/bin/warm-repo && rm -f /tmp/push-build.sh /tmp/warm-repo.sh"
+  && sudo install -m 0755 /tmp/warm-repo.sh /usr/local/bin/warm-repo \
+  && sudo tic -x -o /usr/share/terminfo /tmp/xterm-ghostty.terminfo \
+  && rm -f /tmp/push-build.sh /tmp/warm-repo.sh /tmp/xterm-ghostty.terminfo"
 
 echo "== A4 generalize + bake base image $GOLDEN_IMAGE, delete builder =="
 generalize_instance "$BUILDER"
