@@ -2,8 +2,8 @@
 # BUILDER PROVISIONER (one-time). Used only by vm/install.sh on the throwaway builder to
 # install everything that gets baked into the golden image, ALL BARE-METAL on the VM (no
 # Docker): Tailscale, Chrome Remote Desktop + XFCE, Google Chrome, JDK 17 + the Android
-# SDK, Android Studio, gh, and a system-scope CLAUDE.md. Claude Code (native, no Node/npm)
-# installs per-user on first login. Per-instance wiring is startup-golden.sh's job. Idempotent.
+# SDK (headless, no Studio), gh, tmux, and a system-scope CLAUDE.md. Claude Code (native, no
+# Node/npm) installs per-user on first login. Per-instance wiring is startup-golden.sh's job.
 set -euo pipefail
 exec > >(tee -a /var/log/android-dev-startup.log) 2>&1
 echo "=== provisioning $(date -u) ==="
@@ -17,7 +17,7 @@ SDK=/opt/android-sdk
 # --- base tools -----------------------------------------------------------
 apt-get update
 apt-get install -y --no-install-recommends \
-  git curl wget unzip zip ca-certificates gnupg openjdk-17-jdk-headless
+  git curl wget unzip zip ca-certificates gnupg openjdk-17-jdk-headless tmux
 
 # --- Tailscale (install only; nodes join via startup-golden.sh) -----------
 command -v tailscale >/dev/null || curl -fsSL https://tailscale.com/install.sh | sh
@@ -75,10 +75,15 @@ if [[ ! -d "$SDK/platform-tools" ]]; then
   set +o pipefail
   yes | "$SDK/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$SDK" --licenses >/dev/null
   set -o pipefail
+  # A broad recent set so command-line Gradle builds work without opening Studio. The SDK
+  # stays writable + all licenses accepted below, so Gradle auto-downloads anything a
+  # project pins that isn't here (that's how we cover "all" without a 50 GB image).
   "$SDK/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$SDK" --install \
-    "platform-tools" "platforms;android-${ANDROID_API}" "build-tools;${BUILD_TOOLS}" \
+    "platform-tools" \
+    "platforms;android-33" "platforms;android-34" "platforms;android-35" \
+    "build-tools;33.0.2" "build-tools;34.0.0" "build-tools;35.0.0" \
     "emulator" "system-images;android-${ANDROID_API};google_apis;x86_64" >/dev/null
-  chmod -R a+rwX "$SDK"          # single-user dev box: any user can build / manage the SDK
+  chmod -R a+rwX "$SDK"          # single-user dev box: any user can build / auto-fetch SDK bits
 fi
 # Shared adb client key baked into the image: every node presents the same identity, so
 # you authorize the phone once ("always allow") and all future nodes are trusted.
@@ -104,24 +109,9 @@ if [[ ! -d "/opt/avd/android${ANDROID_API}.avd" ]]; then
   chmod -R a+rwX /opt/avd
 fi
 
-# --- Android Studio -------------------------------------------------------
-# Studio bundles its own JDK (JBR). Its emulator needs KVM — works on an Intel
-# nested-virt node (NESTED_VIRT=1 + n2-*), otherwise editing/building/debugging only.
-if [[ ! -d /opt/android-studio ]]; then
-  apt-get install -y --no-install-recommends libxrender1 libxtst6 libxi6 libxext6 libfreetype6 fontconfig
-  wget -qO /tmp/studio.tar.gz \
-    "https://edgedl.me.gvt1.com/android/studio/ide-zips/2026.1.1.10/android-studio-quail1-patch2-linux.tar.gz"
-  tar -xzf /tmp/studio.tar.gz -C /opt/ && rm -f /tmp/studio.tar.gz
-  cat > /usr/share/applications/android-studio.desktop <<'DESKTOP'
-[Desktop Entry]
-Name=Android Studio
-Exec=/opt/android-studio/bin/studio.sh
-Icon=/opt/android-studio/bin/studio.png
-Type=Application
-Categories=Development;IDE;
-Terminal=false
-DESKTOP
-fi
+# Android Studio is intentionally NOT installed — builds run headless from the CLI
+# (the SDK above is self-sufficient) and device-checking is `push-build` to a real phone
+# over Tailscale, so there's no IDE to fiddle with.
 
 # --- KVM device access ----------------------------------------------------
 # /dev/kvm is root:kvm 0660 by default; make it world-accessible so the desktop user can
@@ -133,6 +123,16 @@ grep -q 'androiddevenv profile.d' /etc/bash.bashrc || cat >> /etc/bash.bashrc <<
 # androiddevenv: source /etc/profile.d in non-login interactive shells (desktop terminal)
 for _f in /etc/profile.d/*.sh; do [ -r "$_f" ] && . "$_f"; done; unset _f
 BRC
+
+# --- singleton tmux on SSH login ------------------------------------------
+# Any interactive SSH login lands in the one shared "main" tmux session (attach-or-create),
+# so work survives disconnects. Only for SSH (not the desktop terminal) and not already
+# inside tmux. `exec` so leaving tmux ends the SSH session. (Named zz-* to load last.)
+cat > /etc/profile.d/zz-tmux.sh <<'EOF'
+if command -v tmux >/dev/null 2>&1 && [ -z "${TMUX:-}" ] && [ -n "${SSH_CONNECTION:-}" ] && [ -n "${PS1:-}" ]; then
+  exec tmux new-session -A -s main
+fi
+EOF
 
 # --- first-login hook: clone the project + warm Gradle once ---------------
 # The desktop user is created at login (after boot), so the clone can't run at boot.

@@ -7,16 +7,18 @@ into your **laptop** over Tailscale. Pause it to near-zero (`stop`) or literal $
 
 ```
 ┌─ Phone (tailnet node) ─┐        ┌─ GCE VM: android-dev (bare-metal, no Docker) ─┐
-│ adb TCP :5555          │◀─ Tailscale ─▶ JDK17 · Android SDK · Studio · gh ·     │
+│ adb TCP :5555          │◀─ Tailscale ─▶ JDK17 · Android SDK · gh · tmux ·       │
 │ Tailscale ON           │ direct  │   Claude · Chrome · your repo in ~/work       │
 └────────────────────────┘        └───────────────────────────────────────────────┘
    `adb install` lands here            build here; VM connects straight to the phone
 ```
 
-Everything (SDK, Studio, Gradle, Claude, your checkout) is installed **bare-metal on the
-VM** and baked into a **golden GCE image** for ~1-min spin-up — no Docker. The intended
-loop: spin up a node per GitHub issue (repo auto-cloned + Gradle pre-warmed), work over the
-desktop / Claude, push, then `nuke` to $0.
+Everything (a self-sufficient headless Android SDK, Gradle, Claude, your checkout) is
+installed **bare-metal on the VM** and baked into a **golden GCE image** for ~1-min spin-up
+— no Docker, and **no Android Studio**: builds run from the CLI and device-checking is
+`push-build` to a real phone over Tailscale. The intended loop: spin up a node per GitHub
+issue (repo auto-cloned + Gradle pre-warmed), SSH in (you land in a shared tmux), push, then
+`nuke` to $0.
 
 ## Prerequisites (one-time)
 
@@ -50,21 +52,21 @@ shared adb key, so you tap **"Always allow"** on the phone once and all nodes ar
 ## Cloud: bake the golden image once, then spin up fast
 
 New nodes boot from a pre-baked **golden image** with everything installed bare-metal:
-Tailscale + CRD + XFCE, JDK 17 + the Android SDK (incl. emulator packages), **Android
-Studio**, **Google Chrome**, **Claude Code**, and `gh` — all baked in, so they're ready in
-~1 min instead of ~7. Build it once:
+Tailscale + CRD + XFCE, JDK 17 + a self-sufficient Android SDK (platform-tools, several
+recent platforms + build-tools, emulator), **Google Chrome**, **Claude Code**, `gh`, and
+`tmux` — all baked in, so they're ready in ~1 min instead of ~7. No Android Studio. Build
+it once:
 
 ```bash
-./vm/install.sh          # guided: bakes the base image, then (interactively) spins up a
-                         # seed, drops you into its desktop to configure Android Studio
-                         # graphically, and re-bakes the image from it — see below
+./vm/install.sh          # bakes the base image; optionally spins up a seed to bake
+                         # graphical config (browser sign-ins, dotfiles), then re-bakes
 ```
 
-`install.sh` walks the whole thing end to end: it bakes the base image from a throwaway
-builder, then offers to bring up a **seed** node so you can finish Android Studio's setup
-wizard (SDK, licenses, prefs) — or anything else — graphically over the desktop. Press
-Enter and it re-bakes the golden image from that configured seed and deletes it. Skip the
-interactive part (no TTY / no `TAILSCALE_AUTHKEY`) and it just leaves the base image.
+`install.sh` bakes the base image from a throwaway builder, then *optionally* offers a
+**seed** node to bake graphical/home-dir state (browser sign-ins, dotfiles — builds are
+headless, so this is optional). Press Enter and it re-bakes the golden image from that
+configured seed and deletes it. Skip it (answer `n`, or no TTY / no `TAILSCALE_AUTHKEY`) and
+you just get the base image.
 
 Then create nodes from it (needs a **reusable** `TAILSCALE_AUTHKEY`, since every node is
 its own tailnet member):
@@ -102,7 +104,7 @@ afterward *without* rebuilding the whole image, configure any live node and re-b
 
 `reimage.sh` keeps the configured home dir (`~/Android/Sdk`, `~/.config/Google/…`, AVDs)
 and strips only per-machine identity. (CRD registration is single-use, so each node still
-does its one-time code.) The same trick stamps *any* GUI setup — not just Studio.
+does its one-time code.) The same trick stamps *any* GUI/home-dir setup you configure.
 
 ### First boot: register Chrome Remote Desktop (one-time per fresh VM)
 
@@ -123,8 +125,10 @@ on boot, so it survives `stop`→`start` with no re-auth. A fresh node from `cre
 after a `nuke`) needs its own one-time code — registration is single-use and can't be baked.
 
 Open a terminal on the desktop (or `./vm/ssh.sh`) — the toolchain is right there on the
-VM: `claude`, `gh`, `adb`, `sdkmanager`, `emulator`, and your checkout in `~/work`. Claude
+VM: `claude`, `gh`, `adb`, `sdkmanager`, `./gradlew`, and your checkout in `~/work`. Claude
 and GitHub auth are wired automatically from `.env` (`CLAUDE_CODE_OAUTH_TOKEN`/`GH_TOKEN`).
+SSH lands you in a **shared `tmux`** session (`main`) that survives disconnects — reconnect
+from anywhere and pick up where you left off.
 
 ## Per-node: auto-clone your app + warm Gradle
 
@@ -146,9 +150,9 @@ On `./vm/create.sh`, the node:
    spins up the daemon so your first real build is fast.
 
 Steps 2–3 run in the background (log: `~/work/.warm.log`), so the node is usable
-immediately while the build warms. Nothing set? The node just skips this. Because it's all
-on the VM's filesystem, Android Studio (on the same desktop) can open `~/work/<repo>`
-directly.
+immediately while the build warms. Nothing set? The node just skips this. Edit `~/work/<repo>`
+right on the VM — with Claude, `$EDITOR`, or a browser IDE like code-server — and build with
+`./gradlew` (the SDK is self-sufficient; no Studio needed).
 
 ## The magic loop — build in cloud, install on your phone
 
@@ -185,7 +189,7 @@ Interactive one-offs stay in the terminal: nodes created from the webapp are **h
 | `./vm/stop.sh`     | ~$0.10/GB·mo disk (≈$15/mo at 150GB) | `./vm/start.sh` (seconds) | everything (disk intact) |
 | `./vm/nuke.sh`     | $0           | `./vm/create.sh` (fresh node) | none — see below |
 
-**`stop`** is a pause: the disk (your `~/work`, Studio config, CRD registration) stays,
+**`stop`** is a pause: the disk (your `~/work`, home-dir config, CRD registration) stays,
 so `start` resumes in seconds. **`nuke`** is the end of a job: it deletes the instance and
 its disk outright. Nothing is snapshotted — the durable state is the **golden image** plus
 your **pushed git work**. The intended loop is: spin up a node for one GitHub issue, do the
@@ -216,11 +220,12 @@ MACHINE=n2-standard-4        # or n2-standard-8 for a grid; must be Intel — NO
 ```
 
 Then `./vm/create.sh` adds `--enable-nested-virtualization`, the node loads the KVM module
-and opens `/dev/kvm` (udev rule, 0666) — so the baked `emulator` + `android-34` AVD, and
-Android Studio's emulator on the desktop, hardware-accelerate. **Cost:** nested virt adds
-no surcharge; you only pay the pricier machine (see below). Heads-up: even accelerated,
-modern emulators are sluggish on GCP (no GPU → software rendering) — the real-device
-Tailscale/adb loop is usually the better interactive path.
+and opens `/dev/kvm` (udev rule, 0666) — so the baked `emulator` + `android-34` AVD
+hardware-accelerate (headless, e.g. `emulator @android34 -no-window`). **Cost:** nested
+virt adds no surcharge; you only pay the pricier machine (see below). Heads-up: even
+accelerated, modern emulators are sluggish on GCP (no GPU → software rendering) — the
+real-device Tailscale/adb loop (`push-build`) is the better path, which is why there's no
+Studio and device-checking defaults to a real phone.
 
 ### Does it cost more?
 

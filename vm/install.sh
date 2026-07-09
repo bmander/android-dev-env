@@ -51,9 +51,12 @@ if [[ ! -t 0 || -z "${TAILSCALE_AUTHKEY:-}" ]]; then
 fi
 
 echo
-read -r -p "Spin up a seed now to configure the image graphically (Android Studio, etc.)? [Y/n] " ans
+echo "Builds are headless and the SDK is self-sufficient, so this is optional — only useful"
+echo "to bake graphical state (browser sign-ins, dotfiles, etc.) onto every node."
+read -r -p "Spin up a seed to configure the desktop graphically? [y/N] " ans
 case "$ans" in
-  [Nn]*) echo "Skipped. Base image ready — new nodes: ./vm/create.sh [name]"; exit 0 ;;
+  [Yy]*) ;;
+  *) echo "Skipped. Base image ready — new nodes: ./vm/create.sh [name]"; exit 0 ;;
 esac
 
 echo "== B spin up seed $SEED and register its desktop =="
@@ -61,12 +64,11 @@ echo "== B spin up seed $SEED and register its desktop =="
 
 echo
 echo "== configure the desktop =="
-echo "Connect below, launch Android Studio and finish its setup wizard (SDK, licenses),"
-echo "and set up anything else you want on every node. It all gets baked in."
+echo "Connect below and set up whatever you want baked into every node (browser sign-ins,"
+echo "dotfiles, …). It all gets stamped into the golden image."
 ACCESS="https://remotedesktop.google.com/access"
 command -v open >/dev/null && open "$ACCESS" 2>/dev/null || true
-echo "  $ACCESS"
-echo "  (shell instead:  NODE=$SEED ./vm/ssh.sh  — but Studio setup is graphical)"
+echo "  $ACCESS   (or a shell:  NODE=$SEED ./vm/ssh.sh)"
 echo
 read -r -p "When $SEED is configured the way you want, press Enter to bake it in… "
 
