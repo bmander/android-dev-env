@@ -3,7 +3,7 @@
 #   ./vm/create.sh [--headless] [name]
 # Requires a reusable TAILSCALE_AUTHKEY in .env. The Chrome Remote Desktop registration is
 # offered interactively unless --headless (or SKIP_CRD=1, which fleet.sh sets).
-NAME=""; HEADLESS=""
+NAME=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
     -h|--help)
@@ -27,7 +27,7 @@ Key .env knobs:
   PHONE_TS_HOST           phone's tailscale IP for the adb install loop
   MACHINE                 machine type (default e2-standard-4)
   NESTED_VIRT=1           enable KVM for emulators (Intel machine only)
-  DISK_GB                 boot disk size in GB (default 150)
+  DISK_GB                 boot disk size in GB (default 60)
   GIT_REPO / GIT_BRANCH   repo auto-cloned + Gradle-warmed at launch
   GITHUB_TOKEN            GitHub token (else taken from local `gh auth token`)
   CLAUDE_CODE_OAUTH_TOKEN / ANTHROPIC_API_KEY    Claude auth
@@ -38,7 +38,7 @@ Examples:
   ./vm/create.sh --headless w-1   # a headless worker, no desktop
 EOF
       exit 0 ;;
-    --headless) HEADLESS=1 ;;
+    --headless) SKIP_CRD=1 ;;
     -*) echo "create.sh: unknown option '$1' (try --help)" >&2; exit 1 ;;
     *) NAME="$1" ;;
   esac
@@ -49,7 +49,6 @@ source "$(dirname "$0")/config.sh"
 require_env
 
 NAME="${NAME:-$INSTANCE}"
-if [[ -n "$HEADLESS" ]]; then SKIP_CRD=1; fi
 
 # The golden image must exist first (run ./vm/install.sh once).
 if ! gcloud compute images describe "$GOLDEN_IMAGE" --project="$PROJECT" >/dev/null 2>&1; then

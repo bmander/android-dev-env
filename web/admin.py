@@ -13,6 +13,7 @@ still belong in a terminal; this covers day-to-day lifecycle: status, create a
 headless node, start/stop/nuke, fleet up/down, and full cleanup.
 """
 import json, os, re, subprocess, threading, uuid, webbrowser
+from concurrent.futures import ThreadPoolExecutor
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
@@ -61,9 +62,18 @@ def base(v):
 
 
 def status():
+    # The four list calls are independent; run them concurrently (each gcloud invocation
+    # is ~1-2s of process + auth + round-trip, so serial polling would be ~4-8s per tick).
+    with ThreadPoolExecutor(max_workers=4) as ex:
+        raw_inst, raw_imgs, raw_snaps, raw_disks = (f.result() for f in [
+            ex.submit(gcloud_json, ["compute", "instances", "list"]),
+            ex.submit(gcloud_json, ["compute", "images", "list", "--no-standard-images"]),
+            ex.submit(gcloud_json, ["compute", "snapshots", "list"]),
+            ex.submit(gcloud_json, ["compute", "disks", "list"]),
+        ])
     insts = []
     running_cost = 0.0
-    for i in gcloud_json(["compute", "instances", "list"]):
+    for i in raw_inst:
         mt = base(i.get("machineType"))
         st = i.get("status", "")
         ip = ""
@@ -75,12 +85,11 @@ def status():
             running_cost += price
         insts.append({"name": i.get("name"), "zone": base(i.get("zone")), "machine": mt,
                       "status": st, "ip": ip, "price": price})
-    imgs = [{"name": x.get("name"), "sizeGb": x.get("diskSizeGb")}
-            for x in gcloud_json(["compute", "images", "list", "--no-standard-images"])]
-    snaps = [{"name": x.get("name")} for x in gcloud_json(["compute", "snapshots", "list"])]
+    imgs = [{"name": x.get("name"), "sizeGb": x.get("diskSizeGb")} for x in raw_imgs]
+    snaps = [{"name": x.get("name")} for x in raw_snaps]
     disks = [{"name": x.get("name"), "zone": base(x.get("zone")), "sizeGb": x.get("sizeGb"),
               "users": [base(u) for u in (x.get("users") or [])]}
-             for x in gcloud_json(["compute", "disks", "list"])]
+             for x in raw_disks]
     return {"project": PROJECT, "zone": ZONE, "instances": insts, "images": imgs,
             "snapshots": snaps, "disks": disks, "runningCostHr": round(running_cost, 3)}
 
@@ -305,7 +314,8 @@ async function watch(jid){
   };
   poll=setInterval(tick,1000);tick();
 }
-refresh();setInterval(()=>{if(!poll)refresh();},5000);
+refresh();setInterval(()=>{if(!poll && !document.hidden)refresh();},5000);
+document.addEventListener('visibilitychange',()=>{if(!document.hidden && !poll)refresh();});
 </script></body></html>"""
 
 

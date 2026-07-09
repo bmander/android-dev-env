@@ -6,7 +6,7 @@
 #   push-build [path/to.apk]      # defaults to the standard debug APK path
 #
 # Requires: PHONE_TS_HOST set to the phone's Tailscale IP (wired from .env at boot), the
-# phone on Tailscale, and adb TCP mode enabled once (`adb tcpip 5555`, see laptop/README).
+# phone on Tailscale, and adb TCP mode enabled once (`adb tcpip 5555`, see laptop/setup-macos.sh).
 set -euo pipefail
 
 PHONE="${PHONE_TS_HOST:?set PHONE_TS_HOST to the phone tailscale IP}:5555"

@@ -17,43 +17,21 @@ if [[ -n "$AUTHKEY" ]]; then
 fi
 
 # --- host env for the workspace shells ------------------------------------
-# Claude auth, the adb-over-tailscale target, and the GitHub token. Written to
-# /etc/profile.d; the baked /etc/bash.bashrc loop makes non-login (desktop) shells see it.
-{
-  API_KEY="$(meta anthropic-api-key)"
-  [[ -n "$API_KEY" ]] && printf 'export ANTHROPIC_API_KEY=%q\n' "$API_KEY"
-  OAUTH_TOKEN="$(meta claude-oauth-token)"
-  [[ -n "$OAUTH_TOKEN" ]] && printf 'export CLAUDE_CODE_OAUTH_TOKEN=%q\n' "$OAUTH_TOKEN"
-} > /etc/profile.d/claude-auth.sh
+# Auth, the adb-over-tailscale target, the GitHub token, and the project settings, written
+# to /etc/profile.d (the baked bash.bashrc loop makes non-login desktop shells see them).
+# %q-quoted so a token/branch with odd characters can't break the sourced file.
+emit() { [ -n "${2:-}" ] || return 0; printf 'export %s=%q\n' "$1" "$2"; }
 
-PHONE_TS_HOST="$(meta phone-ts-host)"
-if [[ -n "$PHONE_TS_HOST" ]]; then
-  echo "export PHONE_TS_HOST=${PHONE_TS_HOST}" > /etc/profile.d/adb.sh
-fi
-
-GH_TOKEN="$(meta github-token)"
-if [[ -n "$GH_TOKEN" ]]; then
-  { echo "export GH_TOKEN=${GH_TOKEN}"; echo "export GITHUB_TOKEN=${GH_TOKEN}"; } > /etc/profile.d/github.sh
-fi
-
-# Skip Claude Code's interactive first-run onboarding (which forces a login) — auth is
-# handled by the token. Merge the flag into each user's ~/.claude.json, preserving keys.
-for home in /home/*; do
-  [[ -d "$home" ]] || continue
-  u="$(stat -c %U "$home")"
-  python3 - "$home/.claude.json" <<'PY' || true
-import json, sys
-p = sys.argv[1]
-try:
-    d = json.load(open(p))
-except Exception:
-    d = {}
-d["hasCompletedOnboarding"] = True
-d.setdefault("theme", "dark")
-json.dump(d, open(p, "w"))
-PY
-  chown "$u:$u" "$home/.claude.json" 2>/dev/null || true
-done
+{ emit ANTHROPIC_API_KEY "$(meta anthropic-api-key)"
+  emit CLAUDE_CODE_OAUTH_TOKEN "$(meta claude-oauth-token)"; } > /etc/profile.d/claude-auth.sh
+emit PHONE_TS_HOST "$(meta phone-ts-host)" > /etc/profile.d/adb.sh
+GH="$(meta github-token)"
+{ emit GH_TOKEN "$GH"; emit GITHUB_TOKEN "$GH"; } > /etc/profile.d/github.sh
+{ emit GIT_REPO "$(meta git-repo)"
+  emit GIT_BRANCH "$(meta git-branch)"
+  emit GRADLE_WARM_TASK "$(meta gradle-warm-task)"; } > /etc/profile.d/androidproject.sh
+# (Claude onboarding-skip is baked into /etc/skel/.claude.json — the desktop user is
+#  created lazily at login, so seeding it here would be a no-op. See startup-script.sh.)
 
 # --- KVM (for emulators on an Intel nested-virt node; no-op otherwise) -----
 modprobe kvm_intel 2>/dev/null || modprobe kvm_amd 2>/dev/null || true
@@ -66,16 +44,5 @@ for cfg in /home/*/.config/chrome-remote-desktop; do
   echo "CRD host config found for '$u' — ensuring service is up."
   systemctl enable --now "chrome-remote-desktop@$u" || true
 done
-
-# --- project settings for the first-login warm hook -----------------------
-# We can't clone here: the desktop user is created at login (after boot), not now. Instead
-# expose the repo settings; the baked /etc/profile.d/zz-warmrepo.sh clones + warms into
-# ~/work on that user's first interactive login (GH_TOKEN comes from github.sh above).
-GIT_REPO="$(meta git-repo)"
-if [[ -n "$GIT_REPO" ]]; then
-  { echo "export GIT_REPO=${GIT_REPO}"
-    echo "export GIT_BRANCH=$(meta git-branch)"
-    echo "export GRADLE_WARM_TASK=$(meta gradle-warm-task)"; } > /etc/profile.d/androidproject.sh
-fi
 
 echo "=== golden startup done $(date -u) ==="

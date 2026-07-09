@@ -66,6 +66,9 @@ if [ ! -x "$HOME/.local/bin/claude" ] && command -v curl >/dev/null 2>&1 && [ ! 
   nohup sh -c 'curl -fsSL https://claude.ai/install.sh | bash; rm -f "$HOME/.claude-installing"' </dev/null >/dev/null 2>&1 &
 fi
 EOF
+# Skip Claude's interactive onboarding for every (lazily-created) user: /etc/skel is copied
+# into each new home at user creation, so the flag is present before `claude` first runs.
+printf '{"hasCompletedOnboarding":true,"theme":"dark"}\n' > /etc/skel/.claude.json
 
 # --- Android SDK (bare-metal, system-wide) --------------------------------
 if [[ ! -d "$SDK/platform-tools" ]]; then
@@ -121,9 +124,11 @@ fi
 echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666"' > /etc/udev/rules.d/99-kvm.rules
 
 # --- make /etc/profile.d reach non-login shells (XFCE terminal) -----------
+# Login shells already source /etc/profile.d via /etc/profile; guard so we don't source it
+# a second time for them — only non-login interactive shells (desktop terminal) need this.
 grep -q 'androiddevenv profile.d' /etc/bash.bashrc || cat >> /etc/bash.bashrc <<'BRC'
 # androiddevenv: source /etc/profile.d in non-login interactive shells (desktop terminal)
-for _f in /etc/profile.d/*.sh; do [ -r "$_f" ] && . "$_f"; done; unset _f
+if ! shopt -q login_shell; then for _f in /etc/profile.d/*.sh; do [ -r "$_f" ] && . "$_f"; done; unset _f; fi
 BRC
 
 # --- singleton tmux on SSH login ------------------------------------------
@@ -143,12 +148,13 @@ EOF
 # --- first-login hook: clone the project + warm Gradle once ---------------
 # The desktop user is created at login (after boot), so the clone can't run at boot.
 # This fires once per user on their first interactive shell. GIT_REPO/GIT_BRANCH/
-# GRADLE_WARM_TASK/GH_TOKEN come from the other /etc/profile.d/*.sh sourced before it
-# (zz- name => sourced last). Marker-guarded so it never re-runs.
+# GRADLE_WARM_TASK/GH_TOKEN come from the other /etc/profile.d/*.sh sourced before it (zz-
+# name => sourced last). The done-marker is set only on success (lock always cleared), so a
+# transient clone/warm failure retries next login instead of being silently disabled.
 cat > /etc/profile.d/zz-warmrepo.sh <<'EOF'
-if [ -n "${GIT_REPO:-}" ] && [ -w "$HOME" ] && [ ! -e "$HOME/work/.warm-started" ] && command -v warm-repo >/dev/null 2>&1; then
-  mkdir -p "$HOME/work" && touch "$HOME/work/.warm-started"
-  nohup warm-repo > "$HOME/work/.warm.log" 2>&1 < /dev/null &
+if [ -n "${GIT_REPO:-}" ] && [ -w "$HOME" ] && [ ! -e "$HOME/work/.warm-done" ] && [ ! -e "$HOME/work/.warm-running" ] && command -v warm-repo >/dev/null 2>&1; then
+  mkdir -p "$HOME/work" && touch "$HOME/work/.warm-running"
+  nohup sh -c 'warm-repo && touch "$HOME/work/.warm-done"; rm -f "$HOME/work/.warm-running"' > "$HOME/work/.warm.log" 2>&1 < /dev/null &
 fi
 EOF
 
