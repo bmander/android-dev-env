@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Delete EVERY billable compute resource in $PROJECT — all instances (any zone/name),
 # disks, the golden image (and any other custom image), and any snapshots — so the
-# project bills $0. Lists everything and asks to confirm first; pass -y to skip.
+# project bills $0. Lists everything and asks to confirm — default is YES (press Enter to
+# proceed, 'n' to abort); pass -y to skip the prompt entirely.
 #   ./vm/cleanup.sh [-y]
 #
 # Broader than nuke.sh (one instance): this is the "wipe it all" for a dedicated project.
@@ -31,8 +32,8 @@ fi
 
 if [[ -z "$YES" ]]; then
   echo
-  read -r -p "Delete ALL of the above from $PROJECT? [y/N] " ans
-  case "$ans" in [Yy]*) ;; *) echo "Aborted — nothing deleted."; exit 0 ;; esac
+  read -r -p "Delete ALL of the above from $PROJECT? [Y/n] " ans
+  case "$ans" in [Nn]*) echo "Aborted — nothing deleted."; exit 0 ;; esac
 fi
 
 # 1) Instances (per zone; --delete-disks=all takes their attached disks with them).
