@@ -120,6 +120,18 @@ grep -q 'androiddevenv profile.d' /etc/bash.bashrc || cat >> /etc/bash.bashrc <<
 for _f in /etc/profile.d/*.sh; do [ -r "$_f" ] && . "$_f"; done; unset _f
 BRC
 
+# --- first-login hook: clone the project + warm Gradle once ---------------
+# The desktop user is created at login (after boot), so the clone can't run at boot.
+# This fires once per user on their first interactive shell. GIT_REPO/GIT_BRANCH/
+# GRADLE_WARM_TASK/GH_TOKEN come from the other /etc/profile.d/*.sh sourced before it
+# (zz- name => sourced last). Marker-guarded so it never re-runs.
+cat > /etc/profile.d/zz-warmrepo.sh <<'EOF'
+if [ -n "${GIT_REPO:-}" ] && [ -w "$HOME" ] && [ ! -e "$HOME/work/.warm-started" ] && command -v warm-repo >/dev/null 2>&1; then
+  mkdir -p "$HOME/work" && touch "$HOME/work/.warm-started"
+  nohup warm-repo > "$HOME/work/.warm.log" 2>&1 < /dev/null &
+fi
+EOF
+
 apt-get clean
 touch /var/lib/android-dev-provisioned
 echo "=== provisioning done $(date -u) ==="

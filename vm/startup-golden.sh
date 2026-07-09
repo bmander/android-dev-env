@@ -68,17 +68,15 @@ for cfg in /home/*/.config/chrome-remote-desktop; do
   systemctl enable --now "chrome-remote-desktop@$u" || true
 done
 
-# --- clone the project + warm Gradle, as the desktop user, in the background --
+# --- project settings for the first-login warm hook -----------------------
+# We can't clone here: the desktop user is created at login (after boot), not now. Instead
+# expose the repo settings; the baked /etc/profile.d/zz-warmrepo.sh clones + warms into
+# ~/work on that user's first interactive login (GH_TOKEN comes from github.sh above).
 GIT_REPO="$(meta git-repo)"
-WORK_USER="$(meta work-user)"
-# Default to the primary human user (skip system/default homes).
-[[ -z "$WORK_USER" ]] && WORK_USER="$(ls /home 2>/dev/null | grep -vE '^(ubuntu|_crd_network|lost\+found)$' | head -1 || true)"
-if [[ -n "$GIT_REPO" && -n "$WORK_USER" ]] && id "$WORK_USER" >/dev/null 2>&1 && command -v warm-repo >/dev/null; then
-  echo "warming $GIT_REPO for user $WORK_USER in the background."
-  sudo -u "$WORK_USER" -H mkdir -p "/home/$WORK_USER/work"
-  sudo -u "$WORK_USER" -H \
-    env GIT_REPO="$GIT_REPO" GIT_BRANCH="$(meta git-branch)" GRADLE_WARM_TASK="$(meta gradle-warm-task)" GH_TOKEN="$GH_TOKEN" \
-    nohup warm-repo >>"/home/$WORK_USER/work/.warm.log" 2>&1 &
+if [[ -n "$GIT_REPO" ]]; then
+  { echo "export GIT_REPO=${GIT_REPO}"
+    echo "export GIT_BRANCH=$(meta git-branch)"
+    echo "export GRADLE_WARM_TASK=$(meta gradle-warm-task)"; } > /etc/profile.d/androidproject.sh
 fi
 
 echo "=== golden startup done $(date -u) ==="
