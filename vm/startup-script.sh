@@ -144,6 +144,11 @@ if command -v tmux >/dev/null 2>&1 && [ -z "${TMUX:-}" ] && [ -n "${SSH_CONNECTI
   tmux new-session -A -s main && exit
 fi
 EOF
+# tmux: propagate the (Claude-set) window name to the terminal tab title too.
+cat > /etc/tmux.conf <<'EOF'
+set -g set-titles on
+set -g set-titles-string '#W'
+EOF
 
 # --- first-login hook: clone the project + warm Gradle once ---------------
 # The desktop user is created at login (after boot), so the clone can't run at boot.
@@ -184,6 +189,12 @@ If it shows `offline` or is missing (phone changed networks or rebooted), just r
 - Or an activity:  adb -s "$PHONE_TS_HOST:5555" shell am start -n <applicationId>/<activity>
 - Logs:        adb -s "$PHONE_TS_HOST:5555" logcat
 - Uninstall:   adb -s "$PHONE_TS_HOST:5555" uninstall <applicationId>
+
+## Keep the tmux window titled with what you're working on
+So each tmux window / terminal tab shows its current task at a glance, name the tmux window
+after what you're doing. Whenever you start a new task or the topic changes, silently run:
+    tmux rename-window '<short topic>' 2>/dev/null || true
+Use a short 1-3 word label (e.g. "arrivals bug", "gradle upgrade"). Don't announce it.
 
 ## Notes
 - Always target the phone explicitly with `adb -s "$PHONE_TS_HOST:5555" ...` to avoid ambiguity.
