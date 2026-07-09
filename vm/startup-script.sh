@@ -66,26 +66,33 @@ if HOME=/etc/skel bash -c 'curl -fsSL https://claude.ai/install.sh | bash'; then
   ver="$(basename "$(readlink -f /etc/skel/.local/bin/claude)")"
   ln -sf "../share/claude/versions/$ver" /etc/skel/.local/bin/claude
   chmod -R a+rX /etc/skel/.local
-  # Skip Claude's onboarding for every (skel-created) user. Claude REPLACES a hand-written
-  # config on first run (regenerating its own machineID/userID), which drops a pre-set flag —
-  # so let `claude config ls` materialize the real config (no API/token needed), then merge
-  # the skip flag into THAT; Claude preserves it on later writes. (Single-user VM, so the
-  # shared machineID is harmless.) Drop the per-user cache dir so it isn't baked/shared.
-  HOME=/etc/skel /etc/skel/.local/bin/claude config ls >/dev/null 2>&1 || true
-  python3 - <<'PY'
-import json
-p = "/etc/skel/.claude.json"
-try: d = json.load(open(p))
-except Exception: d = {}
-d["hasCompletedOnboarding"] = True
-d.setdefault("theme", "dark")
-json.dump(d, open(p, "w"))
-PY
-  rm -rf /etc/skel/.claude
-  chmod a+r /etc/skel/.claude.json
 else
   echo "WARN: Claude skel-install failed (network?); the first-login fallback hook will cover it." >&2
 fi
+# Pre-accept Claude's onboarding + per-folder trust so no interactive dialog blocks a session
+# (trusted single-user VM). A `claude` shell wrapper does it rather than a baked config,
+# because Claude REPLACES a hand-written config on first run (dropping a pre-set flag) and
+# folder-trust is keyed per absolute path — both need the real $HOME and $PWD, not bake time.
+# It materializes Claude's own config if needed, merges the skip flags for the CURRENT dir,
+# then runs the real claude — race-free and self-healing on every launch. (`claude -p` headless
+# runs don't show these dialogs, and non-interactive shells skip the wrapper — both fine.)
+cat > /etc/profile.d/claude-wrapper.sh <<'WRAP'
+claude() {
+  local cfg="$HOME/.claude.json"
+  grep -q '"machineID"' "$cfg" 2>/dev/null || command claude config ls >/dev/null 2>&1 || true
+  python3 - "$cfg" "$PWD" <<'PY' 2>/dev/null || true
+import json, sys
+cfg, cwd = sys.argv[1], sys.argv[2]
+try: d = json.load(open(cfg))
+except Exception: d = {}
+d["hasCompletedOnboarding"] = True
+d.setdefault("theme", "dark")
+d.setdefault("projects", {}).setdefault(cwd, {})["hasTrustDialogAccepted"] = True
+json.dump(d, open(cfg, "w"))
+PY
+  command claude "$@"
+}
+WRAP
 # Fallback only: install on first login if a user somehow lacks it (e.g. skel didn't apply).
 # Skel makes this a no-op in the normal case (~/.local/bin/claude already exists).
 cat > /etc/profile.d/zz-claude.sh <<'EOF'
