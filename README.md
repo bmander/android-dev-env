@@ -186,7 +186,7 @@ Interactive one-offs stay in the terminal: nodes created from the webapp are **h
 
 | Command            | Cost after   | Come back with           | State kept |
 |--------------------|--------------|--------------------------|------------|
-| `./vm/stop.sh`     | ~$0.10/GB·mo disk (≈$15/mo at 150GB) | `./vm/start.sh` (seconds) | everything (disk intact) |
+| `./vm/stop.sh`     | ~$0.10/GB·mo disk (≈$6/mo at 60GB) | `./vm/start.sh` (seconds) | everything (disk intact) |
 | `./vm/nuke.sh`     | $0           | `./vm/create.sh` (fresh node) | none — see below |
 
 **`stop`** is a pause: the disk (your `~/work`, home-dir config, CRD registration) stays,
