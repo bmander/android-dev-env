@@ -2,8 +2,8 @@
 # BUILDER PROVISIONER (one-time). Used only by vm/install.sh on the throwaway builder to
 # install everything that gets baked into the golden image, ALL BARE-METAL on the VM (no
 # Docker): Tailscale, Chrome Remote Desktop + XFCE, Google Chrome, JDK 17 + the Android
-# SDK, Android Studio, Node + Claude Code, gh. Per-instance wiring is startup-golden.sh's
-# job. Idempotent.
+# SDK, Android Studio, gh, and a system-scope CLAUDE.md. Claude Code (native, no Node/npm)
+# installs per-user on first login. Per-instance wiring is startup-golden.sh's job. Idempotent.
 set -euo pipefail
 exec > >(tee -a /var/log/android-dev-startup.log) 2>&1
 echo "=== provisioning $(date -u) ==="
@@ -53,11 +53,17 @@ if ! command -v gh >/dev/null; then
   apt-get update && apt-get install -y --no-install-recommends gh
 fi
 
-# --- Node + Claude Code ---------------------------------------------------
-if ! command -v claude >/dev/null; then
-  command -v node >/dev/null || { curl -fsSL https://deb.nodesource.com/setup_20.x | bash -; apt-get install -y --no-install-recommends nodejs; }
-  npm install -g @anthropic-ai/claude-code && npm cache clean --force
+# --- Claude Code (native build; no Node/npm) ------------------------------
+# The native installer is per-user ($HOME-keyed) and self-updates in place, so it can't be
+# baked system-wide. Instead: put ~/.local/bin on PATH, and install it for each user on
+# their first login (marker-guarded, in the background) — same pattern as the repo warm hook.
+echo 'export PATH="$HOME/.local/bin:$PATH"' > /etc/profile.d/local-bin.sh
+cat > /etc/profile.d/zz-claude.sh <<'EOF'
+if [ ! -x "$HOME/.local/bin/claude" ] && command -v curl >/dev/null 2>&1 && [ ! -e "$HOME/.claude-installing" ]; then
+  touch "$HOME/.claude-installing"
+  ( curl -fsSL https://claude.ai/install.sh | bash; rm -f "$HOME/.claude-installing" ) >/dev/null 2>&1 &
 fi
+EOF
 
 # --- Android SDK (bare-metal, system-wide) --------------------------------
 if [[ ! -d "$SDK/platform-tools" ]]; then
@@ -139,6 +145,39 @@ if [ -n "${GIT_REPO:-}" ] && [ -w "$HOME" ] && [ ! -e "$HOME/work/.warm-started"
   nohup warm-repo > "$HOME/work/.warm.log" 2>&1 < /dev/null &
 fi
 EOF
+
+# --- system-scope CLAUDE.md (read by every Claude session on this VM) ------
+mkdir -p /etc/claude-code
+cat > /etc/claude-code/CLAUDE.md <<'MD'
+# This VM: Android device access via adb over Tailscale
+
+Android apps are built here and installed/run on a PHYSICAL phone reachable over Tailscale.
+There is no USB and no emulator by default. The phone is a Tailscale node running adb in TCP
+mode on port 5555; its Tailscale IP is in the `PHONE_TS_HOST` environment variable.
+
+## Connect (do this before any adb command; it's idempotent)
+    adb connect "$PHONE_TS_HOST:5555"
+    adb devices                 # expect: <ip>:5555   device
+If it shows `offline` or is missing (phone changed networks or rebooted), just run
+`adb connect "$PHONE_TS_HOST:5555"` again.
+
+## Build + install (the normal loop)
+- In a Gradle project, `push-build` does everything: assembleDebug, connect, and install.
+- Manually:
+    ./gradlew assembleDebug
+    adb -s "$PHONE_TS_HOST:5555" install -r app/build/outputs/apk/debug/app-debug.apk
+
+## Run / launch an app on the phone
+- Launch it:   adb -s "$PHONE_TS_HOST:5555" shell monkey -p <applicationId> -c android.intent.category.LAUNCHER 1
+- Or an activity:  adb -s "$PHONE_TS_HOST:5555" shell am start -n <applicationId>/<activity>
+- Logs:        adb -s "$PHONE_TS_HOST:5555" logcat
+- Uninstall:   adb -s "$PHONE_TS_HOST:5555" uninstall <applicationId>
+
+## Notes
+- Always target the phone explicitly with `adb -s "$PHONE_TS_HOST:5555" ...` to avoid ambiguity.
+- Keep Tailscale ON on the phone. The link may relay via DERP (slower but fine for installs).
+- Do NOT start an emulator unless nested virtualization (KVM, /dev/kvm) is present.
+MD
 
 apt-get clean
 touch /var/lib/android-dev-provisioned
