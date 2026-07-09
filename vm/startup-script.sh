@@ -127,10 +127,14 @@ BRC
 # --- singleton tmux on SSH login ------------------------------------------
 # Any interactive SSH login lands in the one shared "main" tmux session (attach-or-create),
 # so work survives disconnects. Only for SSH (not the desktop terminal) and not already
-# inside tmux. `exec` so leaving tmux ends the SSH session. (Named zz-* to load last.)
+# inside tmux. (Named zz-* to load last.)
 cat > /etc/profile.d/zz-tmux.sh <<'EOF'
 if command -v tmux >/dev/null 2>&1 && [ -z "${TMUX:-}" ] && [ -n "${SSH_CONNECTION:-}" ] && [ -n "${PS1:-}" ]; then
-  exec tmux new-session -A -s main
+  # Some terminals (ghostty, kitty, …) don't have terminfo on this host; fall back so tmux
+  # can start instead of dying with "missing or unsuitable terminal".
+  infocmp "${TERM:-dumb}" >/dev/null 2>&1 || export TERM=xterm-256color
+  # Not `exec`: if tmux can't start, fall through to a normal shell (never brick the login).
+  tmux new-session -A -s main && exit
 fi
 EOF
 
