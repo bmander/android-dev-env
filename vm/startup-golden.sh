@@ -30,8 +30,8 @@ GH="$(meta github-token)"
 { emit GIT_REPO "$(meta git-repo)"
   emit GIT_BRANCH "$(meta git-branch)"
   emit GRADLE_WARM_TASK "$(meta gradle-warm-task)"; } > /etc/profile.d/androidproject.sh
-# (Claude onboarding-skip is baked into /etc/skel/.claude.json — the desktop user is
-#  created lazily at login, so seeding it here would be a no-op. See startup-script.sh.)
+# (Claude onboarding + folder-trust skip is handled by the claude() wrapper in
+#  /etc/profile.d/claude-wrapper.sh — it needs the real $HOME/$PWD. See startup-script.sh.)
 
 # --- KVM (for emulators on an Intel nested-virt node; no-op otherwise) -----
 modprobe kvm_intel 2>/dev/null || modprobe kvm_amd 2>/dev/null || true

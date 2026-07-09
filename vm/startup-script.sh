@@ -3,7 +3,8 @@
 # install everything that gets baked into the golden image, ALL BARE-METAL on the VM (no
 # Docker): Tailscale, Chrome Remote Desktop + XFCE, Google Chrome, JDK 17 + the Android
 # SDK (headless, no Studio), gh, tmux, and a system-scope CLAUDE.md. Claude Code (native, no
-# Node/npm) installs per-user on first login. Per-instance wiring is startup-golden.sh's job.
+# Node/npm) is baked into /etc/skel so each user gets it at account creation (first-login
+# install is only a fallback). Per-instance wiring is startup-golden.sh's job.
 set -euo pipefail
 exec > >(tee -a /var/log/android-dev-startup.log) 2>&1
 echo "=== provisioning $(date -u) ==="
@@ -17,7 +18,7 @@ SDK=/opt/android-sdk
 # --- base tools -----------------------------------------------------------
 apt-get update
 apt-get install -y --no-install-recommends \
-  git curl wget unzip zip ca-certificates gnupg openjdk-17-jdk-headless tmux
+  git curl wget unzip zip ca-certificates gnupg openjdk-17-jdk-headless tmux python3
 
 # --- Tailscale (install only; nodes join via startup-golden.sh) -----------
 command -v tailscale >/dev/null || curl -fsSL https://tailscale.com/install.sh | sh
@@ -79,16 +80,23 @@ fi
 cat > /etc/profile.d/claude-wrapper.sh <<'WRAP'
 claude() {
   local cfg="$HOME/.claude.json"
+  # `machineID` is Claude's sentinel for "config already initialized"; if it's absent, force
+  # Claude to write its own real config first, so the merge below survives its first-run rewrite.
   grep -q '"machineID"' "$cfg" 2>/dev/null || command claude config ls >/dev/null 2>&1 || true
+  # Re-merged every launch (cheap): it's how a not-yet-trusted new $PWD gets pre-accepted.
+  # Written atomically (temp + rename) — this file also holds the login token, so a crash
+  # mid-write must not corrupt it.
   python3 - "$cfg" "$PWD" <<'PY' 2>/dev/null || true
-import json, sys
+import json, sys, os, tempfile
 cfg, cwd = sys.argv[1], sys.argv[2]
 try: d = json.load(open(cfg))
 except Exception: d = {}
 d["hasCompletedOnboarding"] = True
 d.setdefault("theme", "dark")
 d.setdefault("projects", {}).setdefault(cwd, {})["hasTrustDialogAccepted"] = True
-json.dump(d, open(cfg, "w"))
+fd, tmp = tempfile.mkstemp(dir=os.path.dirname(cfg) or ".")
+with os.fdopen(fd, "w") as f: json.dump(d, f)
+os.replace(tmp, cfg)
 PY
   command claude "$@"
 }
