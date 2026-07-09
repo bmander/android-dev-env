@@ -54,20 +54,30 @@ if ! command -v gh >/dev/null; then
 fi
 
 # --- Claude Code (native build; no Node/npm) ------------------------------
-# The native installer is per-user ($HOME-keyed) and self-updates in place, so it can't be
-# baked system-wide. Instead: put ~/.local/bin on PATH, and install it for each user on
-# their first login (marker-guarded, in the background) — same pattern as the repo warm hook.
+# The native install is per-user ($HOME-keyed, self-updating), so it can't live system-wide.
+# Instead bake it into /etc/skel: useradd copies /etc/skel into every new home, so each user
+# gets Claude in ~/.local at ACCOUNT CREATION — present before their first login, no
+# background-install race. Self-updates still land in each user's own ~/.local.
 echo 'export PATH="$HOME/.local/bin:$PATH"' > /etc/profile.d/local-bin.sh
+if HOME=/etc/skel bash -c 'curl -fsSL https://claude.ai/install.sh | bash'; then
+  # The installer writes an ABSOLUTE launcher symlink (into /etc/skel); rewrite it relative
+  # so it still resolves once skel is copied into a real home. World-rX so any user can run
+  # the shared copy until they self-update.
+  ver="$(basename "$(readlink -f /etc/skel/.local/bin/claude)")"
+  ln -sf "../share/claude/versions/$ver" /etc/skel/.local/bin/claude
+  chmod -R a+rX /etc/skel/.local
+else
+  echo "WARN: Claude skel-install failed (network?); the first-login fallback hook will cover it." >&2
+fi
+# Fallback only: install on first login if a user somehow lacks it (e.g. skel didn't apply).
+# Skel makes this a no-op in the normal case (~/.local/bin/claude already exists).
 cat > /etc/profile.d/zz-claude.sh <<'EOF'
 if [ ! -x "$HOME/.local/bin/claude" ] && command -v curl >/dev/null 2>&1 && [ ! -e "$HOME/.claude-installing" ]; then
   touch "$HOME/.claude-installing"
-  # nohup + </dev/null so it survives the login shell exiting (e.g. into tmux); the marker
-  # is removed whether the install succeeds or fails, so a retry isn't blocked next login.
   nohup sh -c 'curl -fsSL https://claude.ai/install.sh | bash; rm -f "$HOME/.claude-installing"' </dev/null >/dev/null 2>&1 &
 fi
 EOF
-# Skip Claude's interactive onboarding for every (lazily-created) user: /etc/skel is copied
-# into each new home at user creation, so the flag is present before `claude` first runs.
+# Skip Claude's interactive onboarding for every (skel-created) user.
 printf '{"hasCompletedOnboarding":true,"theme":"dark"}\n' > /etc/skel/.claude.json
 
 # --- Android SDK (bare-metal, system-wide) --------------------------------
