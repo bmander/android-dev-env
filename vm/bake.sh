@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# One-time install, guided end to end:
+# One-time bake, guided end to end:
 #   A) build the base golden image from a throwaway builder;
 #   B) spin up a seed node from it, drop you into its desktop to configure graphically
 #      (Android Studio's setup wizard, browser sign-ins, dotfiles, …);

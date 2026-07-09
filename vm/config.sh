@@ -62,13 +62,14 @@ delete_instances() { gcloud compute instances delete "$@" --zone="$ZONE" --proje
 scp_vm() { local host="$1"; shift; gcloud compute scp "$@" "$host":/tmp/ --zone="$ZONE" --project="$PROJECT"; }
 
 # Copy the helper scripts + Ghostty terminfo to <host> and install them into place.
-# Used by install.sh (bake) and push-repo.sh (live update) so they can't drift.
+# Used by bake.sh and push-repo.sh (live update) so they can't drift.
 install_helpers() {
-  scp_vm "$1" "$REPO_ROOT/scripts/push-build.sh" "$REPO_ROOT/scripts/warm-repo.sh" "$REPO_ROOT/vm/xterm-ghostty.terminfo"
+  scp_vm "$1" "$REPO_ROOT/scripts/push-build.sh" "$REPO_ROOT/scripts/warm-repo.sh" "$REPO_ROOT/scripts/selfdestruct.sh" "$REPO_ROOT/vm/xterm-ghostty.terminfo"
   ssh_vm "$1" '
     set -e
     sudo install -m 0755 /tmp/push-build.sh /usr/local/bin/push-build
     sudo install -m 0755 /tmp/warm-repo.sh /usr/local/bin/warm-repo
+    sudo install -m 0755 /tmp/selfdestruct.sh /usr/local/bin/selfdestruct
     sudo tic -x -o /usr/share/terminfo /tmp/xterm-ghostty.terminfo
-    rm -f /tmp/push-build.sh /tmp/warm-repo.sh /tmp/xterm-ghostty.terminfo'
+    rm -f /tmp/push-build.sh /tmp/warm-repo.sh /tmp/selfdestruct.sh /tmp/xterm-ghostty.terminfo'
 }

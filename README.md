@@ -58,11 +58,11 @@ recent platforms + build-tools, emulator), **Google Chrome**, **Claude Code**, `
 it once:
 
 ```bash
-./vm/install.sh          # bakes the base image; optionally spins up a seed to bake
+./vm/bake.sh          # bakes the base image; optionally spins up a seed to bake
                          # graphical config (browser sign-ins, dotfiles), then re-bakes
 ```
 
-`install.sh` bakes the base image from a throwaway builder, then *optionally* offers a
+`bake.sh` bakes the base image from a throwaway builder, then *optionally* offers a
 **seed** node to bake graphical/home-dir state (browser sign-ins, dotfiles — builds are
 headless, so this is optional). Press Enter and it re-bakes the golden image from that
 configured seed and deletes it. Skip it (answer `n`, or no TTY / no `TAILSCALE_AUTHKEY`) and
@@ -86,13 +86,13 @@ its own tailnet member):
 Workers are headless (SSH/Claude only); the desktop (CRD) is registered on your primary
 node only. Set `ANTHROPIC_API_KEY` in `.env` so `claude` works non-interactively on workers.
 
-Re-run `./vm/install.sh` whenever you change `vm/startup-script.sh` (the provisioner) or the
+Re-run `./vm/bake.sh` whenever you change `vm/startup-script.sh` (the provisioner) or the
 helper scripts. To iterate on `push-build`/`warm-repo` on a live node without a full
 re-bake, use `./vm/push-repo.sh [name]`.
 
 ### Re-bake later without a full reinstall
 
-`install.sh` already handles the first configure-and-stamp. To change the baked setup
+`bake.sh` already handles the first configure-and-stamp. To change the baked setup
 afterward *without* rebuilding the whole image, configure any live node and re-bake from it:
 
 ```bash
@@ -165,6 +165,10 @@ adb connect $PHONE_TS_HOST:5555         # the phone over tailscale
 adb install -r app/build/outputs/apk/debug/app-debug.apk
 ```
 
+When you're done from the VM itself (no laptop needed), `selfdestruct` leaves the tailnet and
+deletes this instance — the on-box equivalent of `./vm/nuke.sh`. It's immediate (no prompt) and
+survives being run over Tailscale SSH. Requires the compute scope `create.sh` grants the node.
+
 ## Admin webapp
 
 A tidy, self-contained local dashboard (Python 3 stdlib only, no deps):
@@ -180,7 +184,7 @@ the page. It's **localhost-only** (it runs the `vm/` scripts, so never expose it
 `PROJECT`/`ZONE` from your `.env` via `config.sh`.
 
 Interactive one-offs stay in the terminal: nodes created from the webapp are **headless**
-(no CRD desktop), and the image bake (`install.sh`) and CRD registration need a TTY.
+(no CRD desktop), and the image bake (`bake.sh`) and CRD registration need a TTY.
 
 ## Pause / kill
 
@@ -198,12 +202,12 @@ work, push, then `nuke` all the way down to $0.
 **`./vm/cleanup.sh`** goes further: it wipes *everything* billable in the project — all
 instances, disks, the **golden image**, and any snapshots — after showing you the list and
 asking to confirm (`-y` to skip). Use it to zero out completely; the next start then needs
-a full `./vm/install.sh`.
+a full `./vm/bake.sh`.
 
 ## Files
 
-- `vm/` — lifecycle: `install · create · fleet · reimage · start · stop · nuke · cleanup · ssh · push-repo · crd-setup`; `startup-script.sh` (bare-metal provisioner, baked) and `startup-golden.sh` (per-node boot wiring); `lib-bake.sh` (shared generalize + image helpers for `install`/`reimage`).
-- `scripts/` — `push-build.sh` (build + install-over-tailnet) and `warm-repo.sh` (clone + Gradle warm), both baked to `/usr/local/bin` on the VM.
+- `vm/` — lifecycle: `bake · create · fleet · reimage · start · stop · nuke · cleanup · ssh · push-repo · crd-setup`; `startup-script.sh` (bare-metal provisioner, baked) and `startup-golden.sh` (per-node boot wiring); `lib-bake.sh` (shared generalize + image helpers for `bake`/`reimage`).
+- `scripts/` — `push-build.sh` (build + install-over-tailnet), `warm-repo.sh` (clone + Gradle warm), and `selfdestruct.sh` (leave the tailnet + delete this instance), all baked to `/usr/local/bin` on the VM.
 - `web/admin.py` — self-contained local admin dashboard (Python stdlib only; wraps the `vm/` scripts).
 - `laptop/` — one-time phone/adb-over-Tailscale setup (`setup-macos.sh`) and an ACL example.
 

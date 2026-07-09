@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Shared bake helpers for install.sh (fresh builder) and reimage.sh (configured seed).
+# Shared bake helpers for bake.sh (fresh builder) and reimage.sh (configured seed).
 # Assumes vm/config.sh is already sourced (provides ssh_vm, ZONE, PROJECT, GOLDEN_IMAGE).
 
 # Strip per-machine identity from <host> so the resulting image can be cloned safely.

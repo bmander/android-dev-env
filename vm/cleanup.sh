@@ -6,7 +6,7 @@
 #   ./vm/cleanup.sh [-y]
 #
 # Broader than nuke.sh (one instance): this is the "wipe it all" for a dedicated project.
-# It also removes the golden image, so the next start needs a full ./vm/install.sh.
+# It also removes the golden image, so the next start needs a full ./vm/bake.sh.
 source "$(dirname "$0")/config.sh"
 
 YES=""
@@ -56,4 +56,4 @@ done <<< "$DISKS"
 [[ -n "$SNAPSHOTS" ]] && gcloud compute snapshots delete $SNAPSHOTS --project="$PROJECT" -q
 
 echo
-echo "Done. $PROJECT is billing \$0. Rebuild from scratch with ./vm/install.sh."
+echo "Done. $PROJECT is billing \$0. Rebuild from scratch with ./vm/bake.sh."

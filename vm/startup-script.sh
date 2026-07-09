@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# BUILDER PROVISIONER (one-time). Used only by vm/install.sh on the throwaway builder to
+# BUILDER PROVISIONER (one-time). Used only by vm/bake.sh on the throwaway builder to
 # install everything that gets baked into the golden image, ALL BARE-METAL on the VM (no
 # Docker): Tailscale, Chrome Remote Desktop + XFCE, Google Chrome, JDK 17 + the Android
 # SDK (headless, no Studio), gh, tmux, and a system-scope CLAUDE.md. Claude Code (native, no

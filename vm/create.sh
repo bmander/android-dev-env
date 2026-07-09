@@ -50,9 +50,9 @@ require_env
 
 NAME="${NAME:-$INSTANCE}"
 
-# The golden image must exist first (run ./vm/install.sh once).
+# The golden image must exist first (run ./vm/bake.sh once).
 if ! gcloud compute images describe "$GOLDEN_IMAGE" --project="$PROJECT" >/dev/null 2>&1; then
-  echo "Golden image '$GOLDEN_IMAGE' not found. Build it once with:  ./vm/install.sh" >&2
+  echo "Golden image '$GOLDEN_IMAGE' not found. Build it once with:  ./vm/bake.sh" >&2
   exit 1
 fi
 
@@ -104,6 +104,8 @@ gcloud compute instances create "$NAME" \
   --project="$PROJECT" --zone="$ZONE" --machine-type="$MACHINE" $NV_FLAG \
   --image="$GOLDEN_IMAGE" --boot-disk-type=pd-balanced --boot-disk-size="${DISK_GB}GB" \
   --labels=environment=development,purpose=android-dev \
+  --scopes=https://www.googleapis.com/auth/compute \
+
   --metadata=tailscale-authkey="$TAILSCALE_AUTHKEY",phone-ts-host="${PHONE_TS_HOST:-}",anthropic-api-key="${ANTHROPIC_API_KEY:-}",claude-oauth-token="${CLAUDE_CODE_OAUTH_TOKEN:-}",github-token="${GITHUB_TOKEN}",git-repo="${GIT_REPO:-}",git-branch="${GIT_BRANCH:-}",gradle-warm-task="${GRADLE_WARM_TASK:-}" \
   --metadata-from-file=startup-script="$REPO_ROOT/vm/startup-golden.sh"
 
