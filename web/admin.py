@@ -20,6 +20,12 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 VM = ROOT / "vm"
 PORT = int(os.environ.get("ADMIN_PORT", "8787"))
+# This dashboard runs destructive lifecycle commands with no auth, so it's loopback-only.
+# These gate every /api request against (a) CSRF — a cross-origin form can't set
+# application/json, and a cross-origin fetch that does triggers a preflight we never answer;
+# and (b) DNS-rebinding — the rebound request still carries the attacker's Host header.
+LOCAL_HOSTS = {f"127.0.0.1:{PORT}", f"localhost:{PORT}"}
+LOCAL_ORIGINS = {f"http://127.0.0.1:{PORT}", f"http://localhost:{PORT}"}
 NAME_RE = re.compile(r"^[a-z]([-a-z0-9]{0,61}[a-z0-9])?$")  # GCE instance-name rules
 
 # Approx on-demand $/hr (us-west1); only used for a rough "running cost" readout.
@@ -156,9 +162,22 @@ class Handler(BaseHTTPRequestHandler):
     def log_message(self, format, *args):  # noqa: A002 — match base signature; stay quiet
         pass
 
+    def _local_api(self):
+        """Reject non-loopback Host and cross-origin requests to /api (CSRF + DNS-rebinding)."""
+        if self.headers.get("Host", "") not in LOCAL_HOSTS:
+            self._send(403, json.dumps({"error": "forbidden host"}))
+            return False
+        origin = self.headers.get("Origin")
+        if origin is not None and origin not in LOCAL_ORIGINS:
+            self._send(403, json.dumps({"error": "forbidden origin"}))
+            return False
+        return True
+
     def do_GET(self):
         if self.path == "/" or self.path.startswith("/?"):
             return self._send(200, PAGE, "text/html; charset=utf-8")
+        if not self._local_api():
+            return
         if self.path == "/api/status":
             return self._send(200, json.dumps(status()))
         if self.path.startswith("/api/job"):
@@ -171,6 +190,10 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         if self.path != "/api/action":
             return self._send(404, json.dumps({"error": "not found"}))
+        if not self._local_api():
+            return
+        if self.headers.get("Content-Type", "").split(";")[0].strip() != "application/json":
+            return self._send(415, json.dumps({"error": "content-type must be application/json"}))
         n = int(self.headers.get("Content-Length", 0))
         try:
             body = json.loads(self.rfile.read(n) or "{}")
