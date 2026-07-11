@@ -24,6 +24,9 @@ gcloud compute instances create "$BUILDER" \
   --labels=environment=development,purpose=android-dev-builder \
   --metadata-from-file=startup-script="$REPO_ROOT/vm/startup-script.sh"
   # NB: no tailscale-authkey metadata -> builder never joins the tailnet -> nothing to clean.
+# The builder is beefy (n2-standard-8 + SSD) and billing: reap it if any step below fails
+# under `set -e`. Cleared once we delete it on the success path (A4).
+trap 'delete_instances "$BUILDER" 2>/dev/null || true' EXIT
 
 echo "== A2 wait for the provisioner to finish (installs everything bare-metal) =="
 wait_remote "$BUILDER" 'test -f /var/lib/android-dev-provisioned'
@@ -36,6 +39,7 @@ echo "== A4 generalize + bake base image $GOLDEN_IMAGE, delete builder =="
 generalize_instance "$BUILDER"
 bake_golden "$BUILDER"
 delete_instances "$BUILDER"
+trap - EXIT   # builder deleted; no orphan to reap past here
 echo "Base golden image ready."
 
 # ===== B/C. configure a seed graphically, then re-bake ====================
@@ -57,6 +61,8 @@ case "$ans" in
 esac
 
 echo "== B spin up seed $SEED and register its desktop =="
+# Set before create.sh so a seed left half-created by a failing create is still reaped.
+trap 'delete_instances "$SEED" 2>/dev/null || true' EXIT
 "$(dirname "$0")/create.sh" "$SEED"
 
 echo
@@ -73,6 +79,7 @@ echo "== C re-bake $GOLDEN_IMAGE from the configured seed, delete seed =="
 generalize_instance "$SEED"
 bake_golden "$SEED"
 delete_instances "$SEED"
+trap - EXIT   # seed deleted; success
 
 echo
 echo "Done. '$GOLDEN_IMAGE' now includes your configured setup. New nodes: ./vm/create.sh [name]"

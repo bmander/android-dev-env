@@ -23,12 +23,22 @@ generalize_instance() {
   '
 }
 
-# Stop <host> and (re)create the golden image from its boot disk.
+# Stop <host> and (re)create the golden image from its boot disk. Never delete the current
+# golden image before its replacement exists: capture to a staging image first (the risky,
+# slow step), and only once that succeeds swap it into the canonical name via a quick
+# image->image copy. A failed capture thus leaves the working golden image intact, and a
+# failure mid-swap still leaves the good bits in the staging image for manual recovery.
 bake_golden() {
-  local host="$1"
+  local host="$1" staging="${GOLDEN_IMAGE}-staging"
   gcloud compute instances stop "$host" --zone="$ZONE" --project="$PROJECT"
-  gcloud compute images delete "$GOLDEN_IMAGE" --project="$PROJECT" -q 2>/dev/null || true
-  gcloud compute images create "$GOLDEN_IMAGE" \
+  gcloud compute images delete "$staging" --project="$PROJECT" -q 2>/dev/null || true
+  gcloud compute images create "$staging" \
     --project="$PROJECT" --source-disk="$host" --source-disk-zone="$ZONE" \
     --family=android-dev --labels=purpose=android-dev-golden
+  # Capture succeeded — now it's safe to replace the canonical image.
+  gcloud compute images delete "$GOLDEN_IMAGE" --project="$PROJECT" -q 2>/dev/null || true
+  gcloud compute images create "$GOLDEN_IMAGE" \
+    --project="$PROJECT" --source-image="$staging" \
+    --family=android-dev --labels=purpose=android-dev-golden
+  gcloud compute images delete "$staging" --project="$PROJECT" -q
 }
