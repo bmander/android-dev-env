@@ -207,7 +207,7 @@ a full `./vm/bake.sh`.
 ## Files
 
 - `vm/` — lifecycle: `bake · create · fleet · reimage · start · stop · nuke · cleanup · ssh · push-repo · crd-setup`; `startup-script.sh` (bare-metal provisioner, baked) and `startup-golden.sh` (per-node boot wiring); `lib-bake.sh` (shared generalize + image helpers for `bake`/`reimage`).
-- `scripts/` — `push-build.sh` (build + install-over-tailnet), `warm-repo.sh` (clone + Gradle warm), and `selfdestruct.sh` (leave the tailnet + delete this instance), all baked to `/usr/local/bin` on the VM.
+- `scripts/` — `push-build.sh` (build + install-over-tailnet), `warm-repo.sh` (clone + Gradle warm), `work-issue.sh` (set Claude working on a GitHub issue; via `create.sh --issue N`), and `selfdestruct.sh` (leave the tailnet + delete this instance), all baked to `/usr/local/bin` on the VM.
 - `web/admin.py` — self-contained local admin dashboard (Python stdlib only; wraps the `vm/` scripts).
 - `laptop/` — one-time phone/adb-over-Tailscale setup (`setup-macos.sh`) and an ACL example.
 

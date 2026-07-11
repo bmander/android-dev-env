@@ -29,7 +29,8 @@ GH="$(meta github-token)"
 { emit GH_TOKEN "$GH"; emit GITHUB_TOKEN "$GH"; } > /etc/profile.d/github.sh
 { emit GIT_REPO "$(meta git-repo)"
   emit GIT_BRANCH "$(meta git-branch)"
-  emit GRADLE_WARM_TASK "$(meta gradle-warm-task)"; } > /etc/profile.d/androidproject.sh
+  emit GRADLE_WARM_TASK "$(meta gradle-warm-task)"
+  emit WORK_ISSUE "$(meta work-issue)"; } > /etc/profile.d/androidproject.sh
 # (Claude onboarding + folder-trust skip is handled by the claude() wrapper in
 #  /etc/profile.d/claude-wrapper.sh — it needs the real $HOME/$PWD. See startup-script.sh.)
 

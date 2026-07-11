@@ -8,7 +8,7 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     -h|--help)
       cat <<'EOF'
-Usage: ./vm/create.sh [--headless] [NAME]
+Usage: ./vm/create.sh [--headless] [--issue N] [NAME]
 
 Create an android-dev VM node from the golden image (~1 min boot). Config comes from .env
 (see .env.example); TAILSCALE_AUTHKEY is required. Once up, the node prompts once for the
@@ -20,6 +20,9 @@ Arguments:
 
 Options:
   --headless              skip the Chrome Remote Desktop desktop-registration prompt
+  --issue N               start an unattended Claude worker on GitHub issue N in $GIT_REPO —
+                          kicked off automatically (no login needed), running in tmux so you
+                          can SSH in and watch. Needs GIT_REPO + a GitHub token.
   -h, --help              show this help and exit
 
 Key .env knobs:
@@ -35,10 +38,13 @@ Key .env knobs:
 Examples:
   ./vm/create.sh                  # primary node named android-dev (prompts for CRD)
   ./vm/create.sh issue-1234       # a node for one GitHub issue
+  ./vm/create.sh --issue 1234 issue-1234   # ...and set Claude working on issue #1234
   ./vm/create.sh --headless w-1   # a headless worker, no desktop
 EOF
       exit 0 ;;
     --headless) SKIP_CRD=1 ;;
+    --issue) WORK_ISSUE="${2:?--issue needs a GitHub issue number}"; shift ;;
+    --issue=*) WORK_ISSUE="${1#*=}" ;;
     -*) echo "create.sh: unknown option '$1' (try --help)" >&2; exit 1 ;;
     *) NAME="$1" ;;
   esac
@@ -86,6 +92,13 @@ if [[ -n "${GIT_REPO:-}" && -z "$GITHUB_TOKEN" ]]; then
   echo "note: GIT_REPO set but no GitHub token (set GITHUB_TOKEN in .env or run 'gh auth login') — private clone will fail." >&2
 fi
 
+# --issue N sets Claude to work the issue in the cloned repo on first login — so it needs a
+# repo to clone (and, to view the issue / open a PR, a GitHub token).
+if [[ -n "${WORK_ISSUE:-}" && -z "${GIT_REPO:-}" ]]; then
+  echo "--issue $WORK_ISSUE needs a repo to work in — set GIT_REPO in .env." >&2
+  exit 1
+fi
+
 # Nested virtualization (KVM) for Android emulators — opt-in via NESTED_VIRT=1.
 NV_FLAG=""
 if [[ -n "${NESTED_VIRT:-}" ]]; then
@@ -105,8 +118,7 @@ gcloud compute instances create "$NAME" \
   --image="$GOLDEN_IMAGE" --boot-disk-type=pd-balanced --boot-disk-size="${DISK_GB}GB" \
   --labels=environment=development,purpose=android-dev \
   --scopes=https://www.googleapis.com/auth/compute \
-
-  --metadata=tailscale-authkey="$TAILSCALE_AUTHKEY",phone-ts-host="${PHONE_TS_HOST:-}",anthropic-api-key="${ANTHROPIC_API_KEY:-}",claude-oauth-token="${CLAUDE_CODE_OAUTH_TOKEN:-}",github-token="${GITHUB_TOKEN}",git-repo="${GIT_REPO:-}",git-branch="${GIT_BRANCH:-}",gradle-warm-task="${GRADLE_WARM_TASK:-}" \
+  --metadata=tailscale-authkey="$TAILSCALE_AUTHKEY",phone-ts-host="${PHONE_TS_HOST:-}",anthropic-api-key="${ANTHROPIC_API_KEY:-}",claude-oauth-token="${CLAUDE_CODE_OAUTH_TOKEN:-}",github-token="${GITHUB_TOKEN}",git-repo="${GIT_REPO:-}",git-branch="${GIT_BRANCH:-}",gradle-warm-task="${GRADLE_WARM_TASK:-}",work-issue="${WORK_ISSUE:-}" \
   --metadata-from-file=startup-script="$REPO_ROOT/vm/startup-golden.sh"
 
 echo "Waiting for the node to be reachable (baked image, ~1 min)…"
@@ -121,6 +133,22 @@ echo "Finishing setup for your login user (Claude)…"
 ssh_vm "$NAME" 'test -x "$HOME/.local/bin/claude" || curl -fsSL https://claude.ai/install.sh | bash >/dev/null 2>&1' \
   || echo "  note: couldn't pre-install Claude; it'll install on first login instead." >&2
 echo " up. (Project clone + Gradle warm run in the background: ~/work/.warm.log)"
+
+# --issue N: start the worker now, without waiting for a human to log in. A login shell
+# sources /etc/profile.d, which fires the same first-login hook (zz-warmrepo) a person would
+# trigger: it clones the repo and, with WORK_ISSUE set, hands it to Claude in tmux. The hook
+# nohup-backgrounds the work (so this returns at once) and is marker-guarded (so your later
+# SSH won't relaunch it). It runs as your login user, so `./vm/ssh.sh` drops you into the
+# shared tmux 'main' where Claude is already working.
+if [[ -n "${WORK_ISSUE:-}" ]]; then
+  echo "Starting the Claude worker on issue #$WORK_ISSUE (no login needed)…"
+  # One SSH: wait for startup-golden to have written the per-node env (GIT_REPO/WORK_ISSUE/
+  # tokens) to this file, then run a login shell so it's in scope when the hook reads it. The
+  # node's already reachable (two SSHs above), so an in-shell wait beats a second connection.
+  ssh_vm "$NAME" 'until test -f /etc/profile.d/androidproject.sh; do sleep 5; done; bash -lc :' \
+    || echo "  note: couldn't kick it off remotely; it'll start on your first login instead." >&2
+  echo " Worker launched. SSH in anytime to watch: it's in tmux window 'issue-$WORK_ISSUE'."
+fi
 
 # --- Chrome Remote Desktop (primary node only) ----------------------------
 if [[ "${SKIP_CRD:-}" == "1" ]]; then

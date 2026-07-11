@@ -8,6 +8,7 @@
 #   GIT_BRANCH         optional branch to check out
 #   GRADLE_WARM_TASK   Gradle task to warm caches/daemon (default: assembleDebug)
 #   GH_TOKEN           GitHub token for private clones/pushes
+#   WORK_ISSUE         if set (create.sh --issue N), hand the repo to Claude after cloning
 set -uo pipefail
 
 [[ -n "${GIT_REPO:-}" ]] || exit 0
@@ -22,6 +23,14 @@ if [[ ! -d "$name/.git" ]]; then
   git clone ${GIT_BRANCH:+--branch "$GIT_BRANCH"} "$GIT_REPO" "$name" || { echo "[warm] clone failed"; exit 1; }
 fi
 cd "$name" || exit 1
+
+# create.sh --issue N: set Claude to work the issue now, and skip the local Gradle warm —
+# Claude runs its own builds, and a second concurrent Gradle would contend on the build lock.
+if [[ -n "${WORK_ISSUE:-}" ]]; then
+  echo "[warm] handing issue #$WORK_ISSUE to Claude (skipping Gradle warm)…"
+  work-issue "$WORK_ISSUE" "$PWD" || echo "[warm] work-issue launch failed"
+  exit 0
+fi
 
 if [[ -x ./gradlew ]]; then
   task="${GRADLE_WARM_TASK:-assembleDebug}"
