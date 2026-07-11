@@ -11,9 +11,14 @@ meta() { curl -s -H "Metadata-Flavor: Google" \
   "http://metadata.google.internal/computeMetadata/v1/instance/attributes/$1" || true; }
 
 # --- Tailscale (unique node per instance) ---------------------------------
+# Register under the GCE instance name so the tailnet node matches `./vm/*` names. Take it
+# from the metadata server, not `$(hostname)`: the golden image can carry a stale /etc/hostname
+# (baked off the seed) that the guest agent hasn't reset yet this early in boot.
 AUTHKEY="$(meta tailscale-authkey)"
 if [[ -n "$AUTHKEY" ]]; then
-  tailscale up --authkey="$AUTHKEY" --hostname="$(hostname)" --ssh --accept-routes || true
+  NODE_NAME="$(curl -s -H 'Metadata-Flavor: Google' \
+    http://metadata.google.internal/computeMetadata/v1/instance/name)"
+  tailscale up --authkey="$AUTHKEY" --hostname="${NODE_NAME:-$(hostname)}" --ssh --accept-routes || true
 fi
 
 # --- host env for the workspace shells ------------------------------------
