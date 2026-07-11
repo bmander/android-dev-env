@@ -184,10 +184,14 @@ if command -v tmux >/dev/null 2>&1 && [ -z "${TMUX:-}" ] && [ -n "${SSH_CONNECTI
   tmux new-session -A -s main && exit
 fi
 EOF
-# tmux: propagate the (Claude-set) window name to the terminal tab title too.
+# tmux: propagate the (Claude-set) window name to the terminal tab title too, and show live
+# CPU/MEM in the status bar (tmux-stats re-runs every status-interval; baked to /usr/local/bin).
 cat > /etc/tmux.conf <<'EOF'
 set -g set-titles on
 set -g set-titles-string '#W'
+set -g status-interval 5
+set -g status-right '#(tmux-stats)  %H:%M '
+set -g status-right-length 40
 EOF
 
 # --- first-login hook: clone the project + warm Gradle once ---------------
