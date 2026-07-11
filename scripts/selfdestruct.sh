@@ -8,8 +8,10 @@
 # create.sh grants it (--scopes=…/auth/compute); the default Compute SA already has the
 # instances.delete permission. The boot disk auto-deletes with the instance.
 #
-# The teardown runs detached (setsid): you may be connected over Tailscale SSH, and
-# `tailscale logout` would drop that very session — detaching lets the delete still fire.
+# Order matters: the delete goes over the public internet (not the tailnet), so we fire it
+# FIRST and only leave Tailscale once the API accepts it — a refused delete then never also
+# costs us our access path. The teardown runs detached (setsid) so it finishes even if the
+# box going away (or the logout) drops the Tailscale-SSH session you launched it from.
 set -euo pipefail
 
 meta() { curl -sf -H 'Metadata-Flavor: Google' \
@@ -24,13 +26,21 @@ TOKEN="$(meta instance/service-accounts/default/token \
   | sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p')"
 [[ -n "$TOKEN" ]] || { echo "No access token from metadata server (missing compute scope?)." >&2; exit 1; }
 
-echo "Self-destruct: leaving the tailnet, then deleting $NAME ($ZONE) — irreversible."
+echo "Self-destruct: deleting $NAME ($ZONE), then leaving the tailnet — irreversible."
 
 export NAME ZONE PROJECT TOKEN
 setsid bash -c '
-  timeout 10 sudo tailscale logout 2>/dev/null || sudo tailscale down 2>/dev/null || true
-  curl -sf -X DELETE -H "Authorization: Bearer $TOKEN" \
-    "https://compute.googleapis.com/compute/v1/projects/$PROJECT/zones/$ZONE/instances/$NAME"
+  code=$(curl -s -o /dev/null -w "%{http_code}" -X DELETE -H "Authorization: Bearer $TOKEN" \
+    "https://compute.googleapis.com/compute/v1/projects/$PROJECT/zones/$ZONE/instances/$NAME")
+  if [[ "$code" == 2* ]]; then
+    timeout 10 sudo tailscale logout 2>/dev/null || true   # accepted — leave the tailnet on the way out
+  else
+    # Delete refused (e.g. the SA lacks the compute scope): stay on the tailnet so the box is
+    # still reachable, and leave a durable, findable marker rather than only a /tmp log.
+    echo "selfdestruct FAILED: Compute API returned HTTP $code — instance NOT deleted, still on the tailnet." \
+      | sudo tee /var/log/selfdestruct-failed.log >&2
+  fi
 ' </dev/null >/tmp/selfdestruct.log 2>&1 &
 
-echo "Requested. This node will disconnect and vanish shortly (log: /tmp/selfdestruct.log)."
+echo "Requested. On success this node vanishes shortly; on failure it stays up and reachable"
+echo "(logs: /tmp/selfdestruct.log, and /var/log/selfdestruct-failed.log if the delete is refused)."
