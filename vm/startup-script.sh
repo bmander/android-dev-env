@@ -20,6 +20,11 @@ apt-get update
 apt-get install -y --no-install-recommends \
   git curl wget unzip zip ca-certificates gnupg openjdk-17-jdk-headless tmux python3
 
+# System-wide git identity (/etc/gitconfig) so every user — and Claude's commits — are
+# authored correctly without per-user setup. Single-owner VM, so it's safe to hardcode.
+git config --system user.name  "Brandon Martin-Anderson"
+git config --system user.email "badhill@gmail.com"
+
 # --- Tailscale (install only; nodes join via startup-golden.sh) -----------
 command -v tailscale >/dev/null || curl -fsSL https://tailscale.com/install.sh | sh
 
@@ -239,6 +244,18 @@ So each tmux window / terminal tab shows its current task at a glance, name the 
 after what you're doing. Whenever you start a new task or the topic changes, silently run:
     tmux rename-window '<short topic>' 2>/dev/null || true
 Use a short 1-3 word label (e.g. "arrivals bug", "gradle upgrade"). Don't announce it.
+
+## Testing UIs: never tap raw screen coordinates
+Do NOT drive or verify a user interface with graphical clicks/taps — no `adb shell input
+tap <x> <y>`, no screenshot-and-click. Pixel coordinates are brittle and prove nothing about
+what the UI means. Drive a UI only through a SEMANTIC automation interface built for testing,
+one that targets elements by identity (resource-id, text, contentDescription, accessibility
+role) rather than position:
+- Espresso, Compose UI tests, or UI Automator, run via `./gradlew connectedAndroidTest` /
+  `adb shell am instrument`.
+- To inspect the live hierarchy: `adb -s "$PHONE_TS_HOST:5555" shell uiautomator dump`.
+If no semantic handle exists for what you need, add one (a test tag / contentDescription) or
+say so explicitly — do not fall back to blind coordinate tapping.
 
 ## Notes
 - Always target the phone explicitly with `adb -s "$PHONE_TS_HOST:5555" ...` to avoid ambiguity.
