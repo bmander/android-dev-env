@@ -1,0 +1,38 @@
+name: Deploy launcher page
+
+# Publishes the token-gated launcher (web/launch/) to GitHub Pages. The page holds no
+# secrets — it does nothing until you paste a fine-grained PAT, which it keeps only in your
+# browser's localStorage and sends straight to api.github.com to dispatch launch.yml.
+# One-time: repo Settings → Pages → Source: "GitHub Actions".
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - web/launch/**
+      - .github/workflows/pages.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: web/launch
+      - id: deploy
+        uses: actions/deploy-pages@v4

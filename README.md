@@ -186,6 +186,24 @@ the page. It's **localhost-only** (it runs the `vm/` scripts, so never expose it
 Interactive one-offs stay in the terminal: nodes created from the webapp are **headless**
 (no CRD desktop), and the image bake (`bake.sh`) and CRD registration need a TTY.
 
+## Launch from CI / a web page (no laptop)
+
+Boot nodes without `gcloud` or `.env` on your machine. A GitHub Actions workflow
+(`.github/workflows/launch.yml`, `workflow_dispatch`) runs `create.sh --headless` (or
+`fleet up/down`) on a hosted runner, authenticating to GCP **keylessly** via Workload
+Identity Federation — no service-account key stored anywhere. Trigger it three ways:
+
+- **Actions tab** → *Launch android-dev node* → *Run workflow* (fill name / issue / machine);
+- **CLI:** `gh workflow run launch.yml -f action=create -f name=issue-1234 -f issue=1234`;
+- **Button page:** `web/launch/index.html`, deployed to **GitHub Pages** by `pages.yml`. It
+  holds no secrets — it does nothing until you paste a fine-grained PAT (Actions: write),
+  kept only in your browser and sent only to `api.github.com` to dispatch the workflow. It
+  also lists recent launches. Prefer nothing public? Open the same file as a local `file://`.
+
+One-time setup (WIF provider + repo secrets/variables + enabling Pages) is in
+[`web/launch/README.md`](web/launch/README.md). The golden image must already exist — CI
+creates nodes from it but never bakes or registers a CRD desktop (those need a TTY).
+
 ## Pause / kill
 
 | Command            | Cost after   | Come back with           | State kept |
@@ -206,9 +224,11 @@ a full `./vm/bake.sh`.
 
 ## Files
 
-- `vm/` — lifecycle: `bake · create · fleet · reimage · start · stop · nuke · cleanup · ssh · push-repo · crd-setup`; `startup-script.sh` (bare-metal provisioner, baked) and `startup-golden.sh` (per-node boot wiring); `lib-bake.sh` (shared generalize + image helpers for `bake`/`reimage`).
+- `vm/` — lifecycle: `bake · create · fleet · reimage · start · stop · nuke · ls · cleanup · ssh · push-repo · crd-setup`; `startup-script.sh` (bare-metal provisioner, baked) and `startup-golden.sh` (per-node boot wiring); `lib-bake.sh` (shared generalize + image helpers for `bake`/`reimage`).
 - `scripts/` — `push-build.sh` (build + install-over-tailnet), `warm-repo.sh` (clone + Gradle warm), `work-issue.sh` (set Claude working on a GitHub issue; via `create.sh --issue N`), and `selfdestruct.sh` (leave the tailnet + delete this instance), all baked to `/usr/local/bin` on the VM.
 - `web/admin.py` — self-contained local admin dashboard (Python stdlib only; wraps the `vm/` scripts).
+- `web/launch/` — a token-gated GitHub Pages button page (`index.html`) that dispatches the launcher workflow; `README.md` has the one-time WIF + secrets setup.
+- `.github/workflows/` — `launch.yml` (boot nodes / fleet from CI via `workflow_dispatch`, keyless GCP auth) and `pages.yml` (publish the launcher page).
 - `laptop/` — one-time phone/adb-over-Tailscale setup (`setup-macos.sh`) and an ACL example.
 
 ## Emulators (KVM / nested virtualization)

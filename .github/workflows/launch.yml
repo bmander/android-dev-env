@@ -1,0 +1,140 @@
+name: Launch android-dev node
+
+# Boots a golden-image node (or a fleet) on GCP, headless — the CI equivalent of running
+# ./vm/create.sh --headless on your laptop. Trigger it from the Actions tab, `gh workflow
+# run launch.yml -f ...`, or the token-gated launcher page (web/launch/) via the REST API.
+#
+# One-time setup lives in web/launch/README.md: a Workload Identity Federation provider
+# (keyless GCP auth) plus repo secrets/variables. The golden image must already exist
+# (bake it once locally with ./vm/bake.sh) — CI only creates nodes from it.
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: What to do
+        type: choice
+        default: create
+        options: [create, fleet-up, fleet-down]
+      name:
+        description: "create: instance name (GCE rules, e.g. issue-1234)"
+        type: string
+        default: android-dev
+      issue:
+        description: "create: GitHub issue # to start an unattended Claude worker on (optional)"
+        type: string
+        default: ""
+      machine:
+        description: "Machine type (blank = repo default, e.g. e2-standard-4)"
+        type: string
+        default: ""
+      count:
+        description: "fleet-up: number of headless workers"
+        type: string
+        default: "3"
+      nested_virt:
+        description: "Enable KVM for emulators (needs an Intel N2/C machine)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  id-token: write        # required for keyless Workload Identity Federation auth
+
+# Serialize per target name so two clicks don't race on the same instance. fleet-* share
+# one lane (they touch the android-dev-w-* pool); create lanes are keyed by node name.
+concurrency:
+  group: launch-${{ github.event.inputs.action == 'create' && github.event.inputs.name || 'fleet' }}
+  cancel-in-progress: false
+
+jobs:
+  launch:
+    runs-on: ubuntu-latest
+    # create.sh waits on `gcloud compute ssh` to the new node; cap the job so a firewall/OS-Login
+    # misconfig fails fast instead of hanging on the default 6h ceiling.
+    timeout-minutes: 30
+    env:
+      # gcloud non-interactive: no keypair/passphrase prompts on first `compute ssh`.
+      CLOUDSDK_CORE_DISABLE_PROMPTS: "1"
+      # config.sh reads these from the environment when no .env is present (CI has none).
+      PROJECT: ${{ vars.GCP_PROJECT }}
+      ZONE: ${{ vars.GCP_ZONE }}
+      TAILSCALE_AUTHKEY: ${{ secrets.TAILSCALE_AUTHKEY }}
+      PHONE_TS_HOST: ${{ vars.PHONE_TS_HOST }}
+      DISK_GB: ${{ vars.DISK_GB }}
+      GIT_REPO: ${{ vars.GIT_REPO }}
+      GIT_BRANCH: ${{ vars.GIT_BRANCH }}
+      GRADLE_WARM_TASK: ${{ vars.GRADLE_WARM_TASK }}
+      # A PAT for cloning a PRIVATE app repo (GIT_REPO) — NOT this repo's automatic token,
+      # which can't read other repos. Leave unset for public/absent GIT_REPO.
+      GITHUB_TOKEN: ${{ secrets.GH_CLONE_TOKEN }}
+      # Claude auth for the node (either one; OAuth token preferred). Optional.
+      CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: auth
+        name: Authenticate to GCP (keyless, WIF)
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_SERVICE_ACCOUNT }}
+
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Resolve machine / nested-virt overrides
+        env:
+          IN_MACHINE: ${{ github.event.inputs.machine }}
+          VAR_MACHINE: ${{ vars.MACHINE }}
+          IN_NV: ${{ github.event.inputs.nested_virt }}
+        run: |
+          set -euo pipefail
+          m="${IN_MACHINE:-$VAR_MACHINE}"
+          [ -n "$m" ] && echo "MACHINE=$m" >> "$GITHUB_ENV" || true
+          [ "$IN_NV" = "true" ] && echo "NESTED_VIRT=1" >> "$GITHUB_ENV" || true
+
+      - name: Launch
+        # Inputs come in as env (never interpolated into the script) to avoid shell injection.
+        env:
+          ACTION: ${{ github.event.inputs.action }}
+          NODE_NAME: ${{ github.event.inputs.name }}
+          ISSUE: ${{ github.event.inputs.issue }}
+          COUNT: ${{ github.event.inputs.count }}
+        run: |
+          set -euo pipefail
+          case "$ACTION" in
+            create)
+              args=(--headless)
+              [ -n "$ISSUE" ] && args+=(--issue "$ISSUE")
+              args+=("$NODE_NAME")
+              echo "::group::create ${args[*]}"
+              ./vm/create.sh "${args[@]}"
+              echo "::endgroup::" ;;
+            fleet-up)
+              [[ "$COUNT" =~ ^[0-9]+$ ]] || { echo "count must be a number" >&2; exit 1; }
+              ./vm/fleet.sh up "$COUNT" ;;
+            fleet-down)
+              ./vm/fleet.sh down ;;
+            *)
+              echo "unknown action: $ACTION" >&2; exit 1 ;;
+          esac
+
+      - name: Summary
+        if: always()
+        env:
+          ACTION: ${{ github.event.inputs.action }}
+          NODE_NAME: ${{ github.event.inputs.name }}
+          ISSUE: ${{ github.event.inputs.issue }}
+          COUNT: ${{ github.event.inputs.count }}
+        run: |
+          {
+            echo "### Launch: \`$ACTION\`"
+            case "$ACTION" in
+              create)     echo "- node: \`$NODE_NAME\`"; [ -n "$ISSUE" ] && echo "- issue worker: #$ISSUE" || true ;;
+              fleet-up)   echo "- workers: $COUNT × \`android-dev-w-*\`" ;;
+              fleet-down) echo "- deleted the \`android-dev-w-*\` pool" ;;
+            esac
+            echo "- project: \`${PROJECT:-?}\` · zone: \`${ZONE:-?}\`"
+          } >> "$GITHUB_STEP_SUMMARY"

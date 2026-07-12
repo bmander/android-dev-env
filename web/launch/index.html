@@ -1,0 +1,272 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>androiddevenv launcher</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--fg:#1a1d21;--mut:#6b7280;--line:#e5e7eb;--accent:#2563eb;
+ --ok:#16a34a;--warn:#d97706;--danger:#dc2626;--term:#0b0f14;--termfg:#d7e0ea}
+@media(prefers-color-scheme:dark){:root{--bg:#0d1117;--card:#161b22;--fg:#e6edf3;--mut:#8b949e;
+ --line:#30363d;--accent:#4d8bf0;--term:#010409;--termfg:#c9d4e0}}
+*{box-sizing:border-box}body{margin:0;font:14px/1.5 -apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;
+ background:var(--bg);color:var(--fg)}
+header{display:flex;align-items:center;gap:14px;padding:14px 20px;border-bottom:1px solid var(--line);
+ background:var(--card);position:sticky;top:0;z-index:5;flex-wrap:wrap}
+h1{font-size:16px;margin:0;font-weight:650}
+.meta{color:var(--mut);font-size:12.5px}
+.spacer{margin-left:auto}
+main{max-width:760px;margin:0 auto;padding:20px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:18px}
+.card h2{font-size:13px;text-transform:uppercase;letter-spacing:.04em;color:var(--mut);margin:0 0 12px}
+label{display:block;font-size:12px;color:var(--mut);margin:0 0 4px}
+input,select{font:inherit;padding:6px 9px;border:1px solid var(--line);border-radius:8px;
+ background:var(--bg);color:var(--fg);width:100%}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.field{margin-bottom:12px}.field.full{grid-column:1/-1}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+button{font:inherit;font-size:13px;padding:7px 14px;border:1px solid var(--line);border-radius:8px;
+ background:var(--card);color:var(--fg);cursor:pointer}button:hover{border-color:var(--accent)}
+button:disabled{opacity:.45;cursor:default}
+.btn-primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+.btn-danger{color:var(--danger);border-color:color-mix(in srgb,var(--danger) 40%,var(--line))}
+.hint{font-size:12px;color:var(--mut);margin-top:6px}
+.chk{display:flex;align-items:center;gap:8px}.chk input{width:auto}
+#msg{font-size:13px;margin-top:12px;min-height:1.2em}
+.ok{color:var(--ok)}.err{color:var(--danger)}
+.runs{list-style:none;margin:0;padding:0}
+.runs li{display:flex;align-items:center;gap:10px;padding:8px 2px;border-bottom:1px solid var(--line)}
+.runs li:last-child{border-bottom:0}
+.runs a{color:var(--fg);text-decoration:none;font-weight:600}.runs a:hover{color:var(--accent)}
+.dot{width:9px;height:9px;border-radius:50%;flex:0 0 auto;background:var(--mut)}
+.dot.run{background:var(--accent);animation:pulse 1.2s ease-in-out infinite}
+.dot.ok{background:var(--ok)}.dot.fail{background:var(--danger)}.dot.warn{background:var(--warn)}
+@keyframes pulse{50%{opacity:.35}}
+.rmeta{color:var(--mut);font-size:12px;margin-left:auto;white-space:nowrap}
+details summary{cursor:pointer;color:var(--mut);font-size:12.5px}
+.settings{margin-top:12px}.settings .grid{grid-template-columns:1fr 1fr 1fr}
+.empty{color:var(--mut);padding:6px 2px}
+code{font:12px ui-monospace,SFMono-Regular,Menlo,monospace;background:color-mix(in srgb,var(--mut) 18%,transparent);
+ padding:1px 5px;border-radius:5px}
+</style></head><body>
+<header>
+  <h1>🚀 androiddevenv launcher</h1>
+  <div class="meta"><span id="repoLabel">…</span></div>
+  <div class="spacer"></div>
+  <span class="dot" id="authDot" title="paste a token below"></span>
+</header>
+<main>
+  <div class="card">
+    <h2>Launch</h2>
+    <div class="field full">
+      <label for="action">Action</label>
+      <select id="action">
+        <option value="create">Create a node</option>
+        <option value="fleet-up">Fleet — spin up N headless workers</option>
+        <option value="fleet-down">Fleet — delete all workers</option>
+      </select>
+    </div>
+    <div class="grid">
+      <div class="field" data-for="create">
+        <label for="name">Node name</label>
+        <input id="name" value="android-dev" placeholder="issue-1234" autocomplete="off">
+      </div>
+      <div class="field" data-for="create">
+        <label for="issue">Issue # (optional worker)</label>
+        <input id="issue" placeholder="e.g. 1234" inputmode="numeric" autocomplete="off">
+      </div>
+      <div class="field" data-for="fleet-up">
+        <label for="count">Worker count</label>
+        <input id="count" value="3" inputmode="numeric" autocomplete="off">
+      </div>
+      <div class="field" data-for="create fleet-up">
+        <label for="machine">Machine type (blank = default)</label>
+        <input id="machine" placeholder="e2-standard-4" autocomplete="off">
+      </div>
+      <div class="field full chk" data-for="create fleet-up">
+        <input type="checkbox" id="nv"><label for="nv" style="margin:0">Enable KVM for emulators (Intel N2/C machine)</label>
+      </div>
+    </div>
+    <div class="row">
+      <button class="btn-primary" id="go">Launch</button>
+      <span id="msg"></span>
+    </div>
+    <div class="hint">Nodes are always <b>headless</b> (no Chrome Remote Desktop). Fleet-down deletes the whole <code>android-dev-w-*</code> pool.</div>
+  </div>
+
+  <div class="card">
+    <h2>Recent launches</h2>
+    <ul class="runs" id="runs"></ul>
+    <div class="empty" id="runsEmpty" hidden>No runs yet — or your token can't read Actions.</div>
+  </div>
+
+  <div class="card">
+    <details id="setup">
+      <summary>Setup &amp; token</summary>
+      <div class="settings">
+        <div class="field full">
+          <label for="pat">Fine-grained GitHub PAT — repo <code id="repoCode"></code>, permission <b>Actions: Read and write</b></label>
+          <input id="pat" type="password" placeholder="github_pat_…" autocomplete="off">
+          <div class="hint">Stored only in this browser (localStorage), sent only to api.github.com. Never committed. <a id="patLink" href="#" target="_blank" rel="noopener">Create one →</a></div>
+        </div>
+        <div class="grid">
+          <div class="field"><label for="owner">Owner</label><input id="owner" autocomplete="off"></div>
+          <div class="field"><label for="repo">Repo</label><input id="repo" autocomplete="off"></div>
+          <div class="field"><label for="ref">Branch (ref)</label><input id="ref" autocomplete="off"></div>
+        </div>
+        <div class="row"><button id="save">Save</button><button class="btn-danger" id="forget">Forget token</button></div>
+      </div>
+    </details>
+  </div>
+</main>
+<script>
+const WF = "launch.yml", API = "https://api.github.com", V = "2022-11-28";
+const $ = id => document.getElementById(id);
+const LS = {
+  get: (k, d) => localStorage.getItem("adl." + k) ?? d,
+  set: (k, v) => localStorage.setItem("adl." + k, v),
+  del: k => localStorage.removeItem("adl." + k),
+};
+// Defaults; overridable in Setup. Owner/repo inferred from a github.io host when possible.
+function guessOwnerRepo(){
+  const m = location.hostname.match(/^([^.]+)\.github\.io$/);
+  const parts = location.pathname.split("/").filter(Boolean);
+  if (m && parts.length) return [m[1], parts[0]];
+  return ["bmander", "android-dev-env"];
+}
+const [defOwner, defRepo] = guessOwnerRepo();
+let owner = LS.get("owner", defOwner), repo = LS.get("repo", defRepo), ref = LS.get("ref", "main");
+let pat = LS.get("pat", "");
+
+function syncLabels(){
+  $("owner").value = owner; $("repo").value = repo; $("ref").value = ref; $("pat").value = pat;
+  $("repoLabel").textContent = owner + "/" + repo;
+  $("repoCode").textContent = owner + "/" + repo;
+  $("patLink").href = "https://github.com/settings/personal-access-tokens/new";
+  const ok = !!pat;
+  $("authDot").className = "dot" + (ok ? " ok" : "");
+  $("authDot").title = ok ? "token set" : "paste a token in Setup";
+  if (!ok) $("setup").open = true;
+}
+
+async function gh(path, opts = {}){
+  const r = await fetch(API + path, {
+    ...opts,
+    headers: {
+      "Accept": "application/vnd.github+json",
+      "X-GitHub-Api-Version": V,
+      "Authorization": "Bearer " + pat,
+      ...(opts.body ? {"Content-Type": "application/json"} : {}),
+    },
+  });
+  if (r.status === 204) return null;
+  const body = await r.text();
+  const data = body ? JSON.parse(body) : null;
+  if (!r.ok) throw new Error((data && data.message) || ("HTTP " + r.status));
+  return data;
+}
+
+const NAME_RE = /^[a-z]([-a-z0-9]{0,61}[a-z0-9])?$/;   // GCE instance-name rules
+function currentAction(){ return $("action").value; }
+
+function refreshVisibility(){
+  const a = currentAction();
+  document.querySelectorAll("[data-for]").forEach(el => {
+    el.style.display = el.dataset.for.split(" ").includes(a) ? "" : "none";
+  });
+}
+
+function collectInputs(){
+  const a = currentAction();
+  const inputs = { action: a };
+  if (a === "create"){
+    const name = $("name").value.trim();
+    if (!NAME_RE.test(name)) throw new Error("Invalid node name (lowercase letters/digits/-, must start with a letter).");
+    inputs.name = name;
+    const issue = $("issue").value.trim();
+    if (issue){
+      if (!/^\d+$/.test(issue)) throw new Error("Issue must be a number.");
+      inputs.issue = issue;
+    }
+  }
+  if (a === "fleet-up"){
+    const c = $("count").value.trim();
+    if (!/^\d+$/.test(c) || +c < 1 || +c > 16) throw new Error("Worker count must be 1–16.");
+    inputs.count = c;
+  }
+  if (a === "create" || a === "fleet-up"){
+    const m = $("machine").value.trim();
+    if (m) inputs.machine = m;
+    if ($("nv").checked) inputs.nested_virt = true;
+  }
+  return inputs;
+}
+
+async function launch(){
+  const msg = $("msg");
+  if (!pat){ msg.className = "err"; msg.textContent = "Set a token in Setup first."; $("setup").open = true; return; }
+  let inputs;
+  try { inputs = collectInputs(); }
+  catch (e){ msg.className = "err"; msg.textContent = e.message; return; }
+  $("go").disabled = true; msg.className = ""; msg.textContent = "Dispatching…";
+  try {
+    await gh(`/repos/${owner}/${repo}/actions/workflows/${WF}/dispatches`, {
+      method: "POST", body: JSON.stringify({ ref, inputs }),
+    });
+    msg.className = "ok"; msg.textContent = "Launched — watch it below.";
+    setTimeout(loadRuns, 1500);   // dispatch is async; give the run a moment to register
+  } catch (e){
+    msg.className = "err"; msg.textContent = "Failed: " + e.message;
+  } finally {
+    $("go").disabled = false;
+  }
+}
+
+function rel(iso){
+  const s = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000);
+  if (s < 60) return Math.floor(s) + "s ago";
+  if (s < 3600) return Math.floor(s / 60) + "m ago";
+  if (s < 86400) return Math.floor(s / 3600) + "h ago";
+  return Math.floor(s / 86400) + "d ago";
+}
+function runDot(r){
+  if (r.status !== "completed") return "run";
+  return r.conclusion === "success" ? "ok" : r.conclusion === "cancelled" ? "warn" : "fail";
+}
+function esc(s){ return (s ?? "").toString().replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
+
+let runTimer = null;
+async function loadRuns(){
+  if (!pat) return;
+  try {
+    const d = await gh(`/repos/${owner}/${repo}/actions/workflows/${WF}/runs?per_page=8`);
+    const runs = (d && d.workflow_runs) || [];
+    const ul = $("runs"); ul.innerHTML = "";
+    $("runsEmpty").hidden = runs.length > 0;
+    for (const r of runs){
+      const li = document.createElement("li");
+      li.innerHTML = `<span class="dot ${runDot(r)}"></span>`
+        + `<a href="${esc(r.html_url)}" target="_blank" rel="noopener">${esc(r.display_title || r.name)}</a>`
+        + `<span class="rmeta">${esc(r.status === "completed" ? (r.conclusion || "done") : r.status)} · ${rel(r.created_at)}</span>`;
+      ul.appendChild(li);
+    }
+  } catch (e){
+    $("runsEmpty").hidden = false;
+    $("runsEmpty").textContent = "Couldn't load runs: " + e.message;
+  }
+}
+
+// wiring
+$("action").addEventListener("change", refreshVisibility);
+$("go").addEventListener("click", launch);
+$("save").addEventListener("click", () => {
+  owner = $("owner").value.trim() || defOwner;
+  repo = $("repo").value.trim() || defRepo;
+  ref = $("ref").value.trim() || "main";
+  pat = $("pat").value.trim();
+  LS.set("owner", owner); LS.set("repo", repo); LS.set("ref", ref);
+  if (pat) LS.set("pat", pat); else LS.del("pat");
+  syncLabels(); loadRuns();
+});
+$("forget").addEventListener("click", () => { LS.del("pat"); pat = ""; syncLabels(); });
+
+syncLabels(); refreshVisibility(); loadRuns();
+setInterval(() => { if (!document.hidden) loadRuns(); }, 6000);
+</script></body></html>
