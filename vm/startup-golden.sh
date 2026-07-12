@@ -43,6 +43,23 @@ GH="$(meta github-token)"
 modprobe kvm_intel 2>/dev/null || modprobe kvm_amd 2>/dev/null || true
 [[ -e /dev/kvm ]] && chmod 0666 /dev/kvm 2>/dev/null || true
 
+# --- self-management: the vm/ toolkit on the node -------------------------
+# Clone (or fast-forward) this repo onto the node so a node can spawn/manage nodes with the
+# same ./vm/ scripts you run from the laptop. config.sh self-configures from instance metadata
+# when there's no .env, so no secrets file is written here — just the (public) tools. Override
+# the source with a `tools-repo` metadata attribute (e.g. a fork). Best-effort: never block boot.
+TOOLS_REPO="$(meta tools-repo)"; TOOLS_REPO="${TOOLS_REPO:-https://github.com/bmander/android-dev-env.git}"
+TOOLS_DIR=/opt/androiddevenv
+if command -v git >/dev/null; then
+  if [[ -d "$TOOLS_DIR/.git" ]]; then
+    git -C "$TOOLS_DIR" pull --ff-only || true
+  else
+    git clone --depth 1 "$TOOLS_REPO" "$TOOLS_DIR" || true
+  fi
+  chmod -R a+rX "$TOOLS_DIR" 2>/dev/null || true
+  echo "vm/ toolkit at $TOOLS_DIR — 'cd $TOOLS_DIR && ./vm/create.sh --headless NAME' to spawn a node."
+fi
+
 # --- Chrome Remote Desktop: resume if this node was registered -------------
 for cfg in /home/*/.config/chrome-remote-desktop; do
   compgen -G "$cfg/host#*.json" >/dev/null || continue

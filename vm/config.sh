@@ -12,8 +12,34 @@ if [[ -f "$REPO_ROOT/.env" ]]; then
   set -a; . "$REPO_ROOT/.env"; set +a
 fi
 
-# PROJECT is required and must come from .env — never fall back to the ambient
-# `gcloud config` project (too easy to target the wrong one).
+# Self-configure from instance metadata when there's no .env PROJECT — i.e. we're the
+# toolkit running ON a GCE node (cloned from GitHub at boot, no .env shipped) so a node
+# can spawn/manage nodes. Everything create.sh needs was baked into this node's own
+# metadata at create/template time; read it back rather than requiring a hand-copied
+# .env with secrets on disk. Only fires when PROJECT is unset, so laptop runs (which
+# have a .env) never touch the metadata server, and env/.env still win where set.
+if [[ -z "${PROJECT:-}" ]] && curl -s -m 1 -H 'Metadata-Flavor: Google' \
+     http://metadata.google.internal/computeMetadata/v1/ >/dev/null 2>&1; then
+  _md() { curl -s -m 2 -H 'Metadata-Flavor: Google' \
+    "http://metadata.google.internal/computeMetadata/v1/$1" 2>/dev/null; }
+  PROJECT="$(_md project/project-id)"
+  ZONE="${ZONE:-$(basename "$(_md instance/zone)")}"   # node's own zone wins over the default
+  # Fill any per-node secret/setting the environment left unset (`:=` skips ones already set).
+  : "${TAILSCALE_AUTHKEY:=$(_md instance/attributes/tailscale-authkey)}"
+  : "${PHONE_TS_HOST:=$(_md instance/attributes/phone-ts-host)}"
+  : "${ANTHROPIC_API_KEY:=$(_md instance/attributes/anthropic-api-key)}"
+  : "${CLAUDE_CODE_OAUTH_TOKEN:=$(_md instance/attributes/claude-oauth-token)}"
+  : "${GITHUB_TOKEN:=$(_md instance/attributes/github-token)}"
+  : "${GIT_REPO:=$(_md instance/attributes/git-repo)}"
+  : "${GIT_BRANCH:=$(_md instance/attributes/git-branch)}"
+  : "${GRADLE_WARM_TASK:=$(_md instance/attributes/gradle-warm-task)}"
+  export TAILSCALE_AUTHKEY PHONE_TS_HOST ANTHROPIC_API_KEY CLAUDE_CODE_OAUTH_TOKEN \
+    GITHUB_TOKEN GIT_REPO GIT_BRANCH GRADLE_WARM_TASK
+fi
+
+# PROJECT is required. On a laptop it must come from .env — never fall back to the ambient
+# `gcloud config` project (too easy to target the wrong one). On a GCE node it's filled from
+# the metadata server above (the node's own project).
 if [[ -z "${PROJECT:-}" ]]; then
   echo "PROJECT is not set. Add it to .env (see .env.example)." >&2
   echo "We intentionally do NOT use the global 'gcloud config' project." >&2
