@@ -109,8 +109,38 @@ Settings → Secrets and variables → Actions.
 - **REST:** `POST /repos/OWNER/REPO/actions/workflows/launch.yml/dispatches` with
   `{"ref":"main","inputs":{...}}` — exactly what the page does.
 
+## Prefer GCP-native? Instance template + MIG
+
+Most of what a launcher/dashboard would do already exists in Google Cloud — you don't have to
+drive it from here. Bake the config into GCP primitives once:
+
+```bash
+./vm/template.sh          # build instance template android-dev-tmpl (mirrors create.sh)
+./vm/mig.sh up 3          # a Managed Instance Group of 3 headless workers (target size)
+./vm/mig.sh down          # target size 0
+```
+
+Then launch and manage without this repo at all:
+
+- **Create a node:** Console → *Compute Engine → Instance templates → android-dev-tmpl → Create VM*,
+  or `gcloud compute instances create NAME --source-instance-template=android-dev-tmpl`.
+- **Fleet size:** Console → *Instance groups → android-dev-mig → Edit → Number of instances*
+  (a slider), or `./vm/mig.sh up N`. A MIG **self-heals** — to shrink, resize down; deleting a
+  member just respawns it.
+- **Start / stop / delete / SSH:** the Console instances list and the **Google Cloud mobile app**.
+- **Cost:** *Billing → Reports* (real numbers) and a **Budget alert** — better than any estimate here.
+- **No laptop, no CI:** run `./vm/create.sh` straight from **Cloud Shell** (browser, pre-authed gcloud).
+
+The page's **Manage on GCP** card deep-links to these. Re-run `./vm/template.sh --force` after
+changing `.env`/`startup-golden.sh`, then `./vm/mig.sh set-template` to roll the fleet forward.
+The template stores the reusable Tailscale key + tokens in its metadata (in your private GCP
+project, not the public repo) — rotate the template when those keys change.
+
+**When to still use the workflow/page:** per-issue workers (`--issue N`) — the template can't
+carry per-instance metadata or do the SSH kick that starts the worker without a human login.
+
 ## Teardown
 
-`launch.yml` covers `create` / `fleet-up` / `fleet-down`. To `stop`/`nuke` a specific node
-or do a full `cleanup`, use the local `./admin` dashboard or `./vm/*.sh` — those read live
-instance state, which a fire-and-forget dispatch page can't.
+`launch.yml` covers `create` / `fleet-up` / `fleet-down`; `./vm/mig.sh down` zeroes the fleet.
+To `stop`/`nuke` a specific node or do a full `cleanup`, use the Console, the `./admin`
+dashboard, or `./vm/*.sh` — those read live instance state, which a fire-and-forget page can't.

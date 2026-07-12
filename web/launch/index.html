@@ -43,6 +43,10 @@ button:disabled{opacity:.45;cursor:default}
 details summary{cursor:pointer;color:var(--mut);font-size:12.5px}
 .settings{margin-top:12px}.settings .grid{grid-template-columns:1fr 1fr 1fr}
 .empty{color:var(--mut);padding:6px 2px}
+.links{display:flex;gap:8px;flex-wrap:wrap;margin-top:4px}
+.links a{display:inline-block;padding:6px 11px;border:1px solid var(--line);border-radius:8px;
+ text-decoration:none;color:var(--fg);font-size:12.5px;font-weight:600}
+.links a:hover{border-color:var(--accent);color:var(--accent)}
 code{font:12px ui-monospace,SFMono-Regular,Menlo,monospace;background:color-mix(in srgb,var(--mut) 18%,transparent);
  padding:1px 5px;border-radius:5px}
 </style></head><body>
@@ -92,6 +96,12 @@ code{font:12px ui-monospace,SFMono-Regular,Menlo,monospace;background:color-mix(
   </div>
 
   <div class="card">
+    <h2>Manage on GCP</h2>
+    <p class="hint" style="margin-top:0">Live inventory, real cost, and start/stop/delete live in Google Cloud — plus the Cloud mobile app. This page just triggers launches.</p>
+    <div class="links" id="gcpLinks"></div>
+  </div>
+
+  <div class="card">
     <h2>Recent launches</h2>
     <ul class="runs" id="runs"></ul>
     <div class="empty" id="runsEmpty" hidden>No runs yet — or your token can't read Actions.</div>
@@ -118,7 +128,20 @@ code{font:12px ui-monospace,SFMono-Regular,Menlo,monospace;background:color-mix(
 </main>
 <script>
 const WF = "launch.yml", API = "https://api.github.com", V = "2022-11-28";
+const GCP_PROJECT = "bmander-android-dev-env";   // Console/Billing deep-links
 const $ = id => document.getElementById(id);
+
+function renderGcpLinks(){
+  const p = encodeURIComponent(GCP_PROJECT);
+  const links = [
+    ["Instances", `https://console.cloud.google.com/compute/instances?project=${p}`],
+    ["Instance groups (fleet)", `https://console.cloud.google.com/compute/instanceGroups/list?project=${p}`],
+    ["Instance templates", `https://console.cloud.google.com/compute/instanceTemplates/list?project=${p}`],
+    ["Billing / cost", `https://console.cloud.google.com/billing?project=${p}`],
+  ];
+  $("gcpLinks").innerHTML = links
+    .map(([t, u]) => `<a href="${u}" target="_blank" rel="noopener">${t} →</a>`).join("");
+}
 const LS = {
   get: (k, d) => localStorage.getItem("adl." + k) ?? d,
   set: (k, v) => localStorage.setItem("adl." + k, v),
@@ -267,6 +290,6 @@ $("save").addEventListener("click", () => {
 });
 $("forget").addEventListener("click", () => { LS.del("pat"); pat = ""; syncLabels(); });
 
-syncLabels(); refreshVisibility(); loadRuns();
+renderGcpLinks(); syncLabels(); refreshVisibility(); loadRuns();
 setInterval(() => { if (!document.hidden) loadRuns(); }, 6000);
 </script></body></html>

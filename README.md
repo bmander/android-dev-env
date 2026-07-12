@@ -204,6 +204,12 @@ One-time setup (WIF provider + repo secrets/variables + enabling Pages) is in
 [`web/launch/README.md`](web/launch/README.md). The golden image must already exist — CI
 creates nodes from it but never bakes or registers a CRD desktop (those need a TTY).
 
+**Or skip the custom layer and go GCP-native.** `./vm/template.sh` bakes the whole config
+into a GCP **instance template**, and `./vm/mig.sh up N` runs the fleet as a **Managed
+Instance Group** — so you launch from the Cloud Console (or the mobile app, or Cloud Shell)
+and get inventory, start/stop, and real cost from Console + Billing, no reimplementation. The
+workflow/page is then only needed for per-issue workers. See `web/launch/README.md`.
+
 ## Pause / kill
 
 | Command            | Cost after   | Come back with           | State kept |
@@ -224,7 +230,7 @@ a full `./vm/bake.sh`.
 
 ## Files
 
-- `vm/` — lifecycle: `bake · create · fleet · reimage · start · stop · nuke · ls · cleanup · ssh · push-repo · crd-setup`; `startup-script.sh` (bare-metal provisioner, baked) and `startup-golden.sh` (per-node boot wiring); `lib-bake.sh` (shared generalize + image helpers for `bake`/`reimage`).
+- `vm/` — lifecycle: `bake · create · fleet · reimage · start · stop · nuke · ls · cleanup · ssh · push-repo · crd-setup`; GCP-native: `template.sh` (build an instance template) and `mig.sh` (a Managed Instance Group fleet); `startup-script.sh` (bare-metal provisioner, baked) and `startup-golden.sh` (per-node boot wiring); `lib-bake.sh` (shared generalize + image helpers for `bake`/`reimage`).
 - `scripts/` — `push-build.sh` (build + install-over-tailnet), `warm-repo.sh` (clone + Gradle warm), `work-issue.sh` (set Claude working on a GitHub issue; via `create.sh --issue N`), and `selfdestruct.sh` (leave the tailnet + delete this instance), all baked to `/usr/local/bin` on the VM.
 - `web/admin.py` — self-contained local admin dashboard (Python stdlib only; wraps the `vm/` scripts).
 - `web/launch/` — a token-gated GitHub Pages button page (`index.html`) that dispatches the launcher workflow; `README.md` has the one-time WIF + secrets setup.

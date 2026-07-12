@@ -27,6 +27,8 @@ export DISK_GB="${DISK_GB:-60}"    # headless SDK + repo + Gradle cache fit comf
 export IMAGE_FAMILY="${IMAGE_FAMILY:-ubuntu-2204-lts}"
 export IMAGE_PROJECT="${IMAGE_PROJECT:-ubuntu-os-cloud}"
 export GOLDEN_IMAGE="${GOLDEN_IMAGE:-android-dev-golden}"
+export TEMPLATE="${TEMPLATE:-android-dev-tmpl}"   # instance template (GCP-native create/fleet)
+export MIG="${MIG:-android-dev-mig}"              # managed instance group for the worker fleet
 export NESTED_VIRT="${NESTED_VIRT:-}"   # set to 1 (+ an N2/C-series MACHINE) to run emulators (KVM)
 # The bake builder is throwaway and short-lived, so make it beefy (~pennies): a
 # full-speed n2 + SSD disk speeds the dpkg/unzip/CPU parts of the build. (Downloads
