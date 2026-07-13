@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Refresh the baked helper scripts (push-build, warm-repo) on a running node — a quick way
-# to iterate on them without a full re-bake. For provisioner/image changes, re-run
+# Refresh the baked helper scripts (push-build, warm-repo, …) and the system CLAUDE.md on a
+# running node — a quick way to iterate on them without a full re-bake. For provisioner/image
+# changes, re-run
 # ./vm/bake.sh instead. Usage:
 #   ./vm/push-repo.sh [name]        # default: $INSTANCE
 source "$(dirname "$0")/config.sh"

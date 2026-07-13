@@ -75,6 +75,18 @@ if HOME=/etc/skel bash -c 'curl -fsSL https://claude.ai/install.sh | bash'; then
 else
   echo "WARN: Claude skel-install failed (network?); the first-login fallback hook will cover it." >&2
 fi
+# User-scope Claude defaults: Opus 4.8 as the default model, vim as the edit mode. Baked into
+# /etc/skel so every user gets them at account creation. Unlike ~/.claude.json (which Claude
+# rewrites on first run — see the wrapper below), ~/.claude/settings.json is stable user-scope
+# config, so a plain file suffices. These are DEFAULTS: /model and /config still override them.
+install -d -m 0755 /etc/skel/.claude
+cat > /etc/skel/.claude/settings.json <<'JSON'
+{
+  "model": "claude-opus-4-8",
+  "editorMode": "vim"
+}
+JSON
+chmod -R a+rX /etc/skel/.claude
 # Pre-accept Claude's onboarding + per-folder trust so no interactive dialog blocks a session
 # (trusted single-user VM). A `claude` shell wrapper does it rather than a baked config,
 # because Claude REPLACES a hand-written config on first run (dropping a pre-set flag) and
@@ -213,55 +225,10 @@ fi
 EOF
 
 # --- system-scope CLAUDE.md (read by every Claude session on this VM) ------
+# Content lives in vm/CLAUDE.md and is shipped/installed by install_helpers() (config.sh)
+# during bake — same path as push-build etc., so it's editable/diffable and `push-repo.sh`
+# live-updates it without a re-bake. (mkdir here so the dir exists even before that step.)
 mkdir -p /etc/claude-code
-cat > /etc/claude-code/CLAUDE.md <<'MD'
-# This VM: Android device access via adb over Tailscale
-
-Android apps are built here and installed/run on a PHYSICAL phone reachable over Tailscale.
-There is no USB and no emulator by default. The phone is a Tailscale node running adb in TCP
-mode on port 5555; its Tailscale IP is in the `PHONE_TS_HOST` environment variable.
-
-## Connect (do this before any adb command; it's idempotent)
-    adb connect "$PHONE_TS_HOST:5555"
-    adb devices                 # expect: <ip>:5555   device
-If it shows `offline` or is missing (phone changed networks or rebooted), just run
-`adb connect "$PHONE_TS_HOST:5555"` again.
-
-## Build + install (the normal loop)
-- In a Gradle project, `push-build` does everything: assembleDebug, connect, and install.
-- Manually:
-    ./gradlew assembleDebug
-    adb -s "$PHONE_TS_HOST:5555" install -r app/build/outputs/apk/debug/app-debug.apk
-
-## Run / launch an app on the phone
-- Launch it:   adb -s "$PHONE_TS_HOST:5555" shell monkey -p <applicationId> -c android.intent.category.LAUNCHER 1
-- Or an activity:  adb -s "$PHONE_TS_HOST:5555" shell am start -n <applicationId>/<activity>
-- Logs:        adb -s "$PHONE_TS_HOST:5555" logcat
-- Uninstall:   adb -s "$PHONE_TS_HOST:5555" uninstall <applicationId>
-
-## Keep the tmux window titled with what you're working on
-So each tmux window / terminal tab shows its current task at a glance, name the tmux window
-after what you're doing. Whenever you start a new task or the topic changes, silently run:
-    tmux rename-window '<short topic>' 2>/dev/null || true
-Use a short 1-3 word label (e.g. "arrivals bug", "gradle upgrade"). Don't announce it.
-
-## Testing UIs: never tap raw screen coordinates
-Do NOT drive or verify a user interface with graphical clicks/taps — no `adb shell input
-tap <x> <y>`, no screenshot-and-click. Pixel coordinates are brittle and prove nothing about
-what the UI means. Drive a UI only through a SEMANTIC automation interface built for testing,
-one that targets elements by identity (resource-id, text, contentDescription, accessibility
-role) rather than position:
-- Espresso, Compose UI tests, or UI Automator, run via `./gradlew connectedAndroidTest` /
-  `adb shell am instrument`.
-- To inspect the live hierarchy: `adb -s "$PHONE_TS_HOST:5555" shell uiautomator dump`.
-If no semantic handle exists for what you need, add one (a test tag / contentDescription) or
-say so explicitly — do not fall back to blind coordinate tapping.
-
-## Notes
-- Always target the phone explicitly with `adb -s "$PHONE_TS_HOST:5555" ...` to avoid ambiguity.
-- Keep Tailscale ON on the phone. The link may relay via DERP (slower but fine for installs).
-- Do NOT start an emulator unless nested virtualization (KVM, /dev/kvm) is present.
-MD
 
 apt-get clean
 touch /var/lib/android-dev-provisioned
