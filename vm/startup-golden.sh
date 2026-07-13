@@ -7,7 +7,10 @@ set -euo pipefail
 exec > >(tee -a /var/log/android-dev-startup.log) 2>&1
 echo "=== golden startup $(date -u) ==="
 
-meta() { curl -s -H "Metadata-Flavor: Google" \
+# -f so a MISSING attribute yields empty (curl exits nonzero, swallowed by `|| true`) rather
+# than the metadata server's 404 HTML page — else `${VAR:-default}` sees non-empty garbage and
+# the default never applies (e.g. optional `tools-repo`, or `work-issue` on template nodes).
+meta() { curl -sf -H "Metadata-Flavor: Google" \
   "http://metadata.google.internal/computeMetadata/v1/instance/attributes/$1" || true; }
 
 # --- Tailscale (unique node per instance) ---------------------------------
