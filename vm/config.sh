@@ -92,7 +92,7 @@ scp_vm() { local host="$1"; shift; gcloud compute scp "$@" "$host":/tmp/ --zone=
 # Copy the helper scripts + Ghostty terminfo to <host> and install them into place.
 # Used by bake.sh and push-repo.sh (live update) so they can't drift.
 install_helpers() {
-  scp_vm "$1" "$REPO_ROOT/scripts/push-build.sh" "$REPO_ROOT/scripts/warm-repo.sh" "$REPO_ROOT/scripts/selfdestruct.sh" "$REPO_ROOT/scripts/work-issue.sh" "$REPO_ROOT/scripts/tmux-stats.sh" "$REPO_ROOT/vm/CLAUDE.md" "$REPO_ROOT/vm/xterm-ghostty.terminfo"
+  scp_vm "$1" "$REPO_ROOT/scripts/push-build.sh" "$REPO_ROOT/scripts/warm-repo.sh" "$REPO_ROOT/scripts/selfdestruct.sh" "$REPO_ROOT/scripts/work-issue.sh" "$REPO_ROOT/scripts/tmux-stats.sh" "$REPO_ROOT/scripts/claude-apply-settings.py" "$REPO_ROOT/vm/CLAUDE.md" "$REPO_ROOT/vm/xterm-ghostty.terminfo"
   ssh_vm "$1" '
     set -e
     sudo install -m 0755 /tmp/push-build.sh /usr/local/bin/push-build
@@ -100,7 +100,8 @@ install_helpers() {
     sudo install -m 0755 /tmp/selfdestruct.sh /usr/local/bin/selfdestruct
     sudo install -m 0755 /tmp/work-issue.sh /usr/local/bin/work-issue
     sudo install -m 0755 /tmp/tmux-stats.sh /usr/local/bin/tmux-stats
+    sudo install -m 0755 /tmp/claude-apply-settings.py /usr/local/bin/claude-apply-settings
     sudo install -D -m 0644 /tmp/CLAUDE.md /etc/claude-code/CLAUDE.md   # system-scope Claude memory
     sudo tic -x -o /usr/share/terminfo /tmp/xterm-ghostty.terminfo
-    rm -f /tmp/push-build.sh /tmp/warm-repo.sh /tmp/selfdestruct.sh /tmp/work-issue.sh /tmp/tmux-stats.sh /tmp/CLAUDE.md /tmp/xterm-ghostty.terminfo'
+    rm -f /tmp/push-build.sh /tmp/warm-repo.sh /tmp/selfdestruct.sh /tmp/work-issue.sh /tmp/tmux-stats.sh /tmp/claude-apply-settings.py /tmp/CLAUDE.md /tmp/xterm-ghostty.terminfo'
 }
