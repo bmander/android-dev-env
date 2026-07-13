@@ -42,6 +42,30 @@ GH="$(meta github-token)"
 # (Claude onboarding + folder-trust skip is handled by the claude() wrapper in
 #  /etc/profile.d/claude-wrapper.sh — it needs the real $HOME/$PWD. See startup-script.sh.)
 
+# --- Claude fleet defaults (Opus 4.8 + vim) -------------------------------
+# /etc/skel/.claude/settings.json (baked by startup-script.sh) sets these at ACCOUNT creation,
+# but the login user's home is baked into the golden image, so skel never reaches it — a stale
+# settings.json from the seed would shadow the defaults. Enforce them here per real home dir,
+# merging so any other settings.json keys survive. Runs each boot (a user's own /model or
+# /config change still holds for the running session); harmless if the values already match.
+for _home in /home/*; do
+  [ -d "$_home/.local" ] || [ -d "$_home/.claude" ] || continue    # a real user home
+  _u="$(stat -c '%U' "$_home")"
+  install -d -o "$_u" -g "$_u" -m 0755 "$_home/.claude"
+  python3 - "$_home/.claude/settings.json" <<'PY' || true
+import json, sys, os, tempfile
+p = sys.argv[1]
+try: d = json.load(open(p))
+except Exception: d = {}
+d["model"] = "claude-opus-4-8"
+d["editorMode"] = "vim"
+fd, tmp = tempfile.mkstemp(dir=os.path.dirname(p))
+with os.fdopen(fd, "w") as f: json.dump(d, f, indent=2)
+os.replace(tmp, p)
+PY
+  chown "$_u:$_u" "$_home/.claude/settings.json" 2>/dev/null || true
+done
+
 # --- KVM (for emulators on an Intel nested-virt node; no-op otherwise) -----
 modprobe kvm_intel 2>/dev/null || modprobe kvm_amd 2>/dev/null || true
 [[ -e /dev/kvm ]] && chmod 0666 /dev/kvm 2>/dev/null || true
