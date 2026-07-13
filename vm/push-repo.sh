@@ -8,7 +8,7 @@ source "$(dirname "$0")/config.sh"
 
 NAME="${1:-$INSTANCE}"
 
-echo "Waiting for SSH on $NAME…"
+echo "Waiting for SSH on ${NAME}…"
 wait_remote "$NAME" 'true'
 install_helpers "$NAME"
 echo "helper scripts + terminfo updated on $NAME."
