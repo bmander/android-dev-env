@@ -8,7 +8,7 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     -h|--help)
       cat <<'EOF'
-Usage: ./vm/create.sh [--headless] [--issue N] [NAME]
+Usage: ./vm/create.sh [--headless] [--ssh] [--issue N] [NAME]
 
 Create an android-dev VM node from the golden image (~1 min boot). Config comes from .env
 (see .env.example); TAILSCALE_AUTHKEY is required. Once up, the node prompts once for the
@@ -20,6 +20,7 @@ Arguments:
 
 Options:
   --headless              skip the Chrome Remote Desktop desktop-registration prompt
+  --ssh                   SSH straight into the node once it's up (drops you into a shell)
   --issue N               start an unattended Claude worker on GitHub issue N in $GIT_REPO —
                           kicked off automatically (no login needed), running in tmux so you
                           can SSH in and watch. Needs GIT_REPO + a GitHub token.
@@ -40,9 +41,11 @@ Examples:
   ./vm/create.sh issue-1234       # a node for one GitHub issue
   ./vm/create.sh --issue 1234 issue-1234   # ...and set Claude working on issue #1234
   ./vm/create.sh --headless w-1   # a headless worker, no desktop
+  ./vm/create.sh --ssh w-1        # ...and drop me into a shell on it once it's up
 EOF
       exit 0 ;;
     --headless) SKIP_CRD=1 ;;
+    --ssh) DO_SSH=1 ;;
     --issue) WORK_ISSUE="${2:?--issue needs a GitHub issue number}"; shift ;;
     --issue=*) WORK_ISSUE="${1#*=}" ;;
     -*) echo "create.sh: unknown option '$1' (try --help)" >&2; exit 1 ;;
@@ -178,4 +181,11 @@ fi
 
 echo
 echo "Done. '$NAME' is up. Desktop (if registered): https://remotedesktop.google.com/access"
+
+# --ssh: hand off straight into an interactive shell on the new node. exec so the SSH session
+# replaces this script as the foreground process (reuses ssh.sh, which takes NAME as arg 1).
+if [[ "${DO_SSH:-}" == "1" ]]; then
+  echo "Connecting to '$NAME' over SSH…"
+  exec "$(dirname "$0")/ssh.sh" "$NAME"
+fi
 echo "SSH:  gcloud compute ssh $NAME --zone=$ZONE --project=$PROJECT"
