@@ -47,7 +47,7 @@ if [[ ! -t 0 || -z "${TAILSCALE_AUTHKEY:-}" ]]; then
   echo
   echo "Base image is ready — new nodes: ./vm/create.sh [name]"
   echo "To bake a graphically-configured setup in, run interactively (with TAILSCALE_AUTHKEY):"
-  echo "  ./vm/create.sh seed  ->  configure the desktop  ->  ./vm/reimage.sh seed"
+  echo "  ./vm/create.sh --desktop seed  ->  configure the desktop  ->  ./vm/reimage.sh seed"
   exit 0
 fi
 
@@ -63,7 +63,9 @@ esac
 echo "== B spin up seed $SEED and register its desktop =="
 # Set before create.sh so a seed left half-created by a failing create is still reaped.
 trap 'delete_instances "$SEED" 2>/dev/null || true' EXIT
-"$(dirname "$0")/create.sh" "$SEED"
+# --desktop: the seed exists to be configured graphically, so it needs Chrome Remote Desktop
+# (nodes are headless by default now).
+"$(dirname "$0")/create.sh" --desktop "$SEED"
 
 echo
 echo "== configure the desktop =="

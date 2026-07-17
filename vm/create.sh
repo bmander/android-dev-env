@@ -1,25 +1,26 @@
 #!/usr/bin/env bash
 # Create an android-dev node from the golden image (fast boot). Usage:
-#   ./vm/create.sh [--headless] [name]
-# Requires a reusable TAILSCALE_AUTHKEY in .env. The Chrome Remote Desktop registration is
-# offered interactively unless --headless (or SKIP_CRD=1, which fleet.sh sets).
+#   ./vm/create.sh [--desktop] [name]
+# Requires a reusable TAILSCALE_AUTHKEY in .env. Nodes are headless by default; pass --desktop
+# to interactively register Chrome Remote Desktop (needs CRD_PIN in .env).
 NAME=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
     -h|--help)
       cat <<'EOF'
-Usage: ./vm/create.sh [--headless] [--ssh] [--issue N] [NAME]
+Usage: ./vm/create.sh [--desktop] [--ssh] [--issue N] [NAME]
 
 Create an android-dev VM node from the golden image (~1 min boot). Config comes from .env
-(see .env.example); TAILSCALE_AUTHKEY is required. Once up, the node prompts once for the
-Chrome Remote Desktop auth code (skip with --headless), then on boot clones $GIT_REPO into
-~/work, warms Gradle, and wires phone-adb / Claude / GitHub auth from your .env.
+(see .env.example); TAILSCALE_AUTHKEY is required. Nodes are headless by default; pass
+--desktop to register Chrome Remote Desktop (prompts once for the auth code). On boot the
+node clones $GIT_REPO into ~/work, warms Gradle, and wires phone-adb / Claude / GitHub auth.
 
 Arguments:
   NAME                    instance name (default: $INSTANCE, i.e. android-dev)
 
 Options:
-  --headless              skip the Chrome Remote Desktop desktop-registration prompt
+  --desktop               register Chrome Remote Desktop (prompts for the auth code; needs CRD_PIN)
+  --headless              no desktop — the DEFAULT now; accepted as an explicit no-op
   --ssh                   SSH straight into the node once it's up (drops you into a shell)
   --issue N               start an unattended Claude worker on GitHub issue N in $GIT_REPO —
                           kicked off automatically (no login needed), running in tmux so you
@@ -37,14 +38,15 @@ Key .env knobs:
   CLAUDE_CODE_OAUTH_TOKEN / ANTHROPIC_API_KEY    Claude auth
 
 Examples:
-  ./vm/create.sh                  # primary node named android-dev (prompts for CRD)
+  ./vm/create.sh                  # headless node named android-dev
+  ./vm/create.sh --desktop        # ...with Chrome Remote Desktop registered
   ./vm/create.sh issue-1234       # a node for one GitHub issue
   ./vm/create.sh --issue 1234 issue-1234   # ...and set Claude working on issue #1234
-  ./vm/create.sh --headless w-1   # a headless worker, no desktop
   ./vm/create.sh --ssh w-1        # ...and drop me into a shell on it once it's up
 EOF
       exit 0 ;;
-    --headless) SKIP_CRD=1 ;;
+    --desktop) WANT_DESKTOP=1 ;;
+    --headless) WANT_DESKTOP=0 ;;   # now the default; kept as an explicit no-op for back-compat
     --ssh) DO_SSH=1 ;;
     --issue) WORK_ISSUE="${2:?--issue needs a GitHub issue number}"; shift ;;
     --issue=*) WORK_ISSUE="${1#*=}" ;;
@@ -153,11 +155,13 @@ if [[ -n "${WORK_ISSUE:-}" ]]; then
   echo " Worker launched. SSH in anytime to watch: it's in tmux window 'issue-$WORK_ISSUE'."
 fi
 
-# --- Chrome Remote Desktop (primary node only) ----------------------------
-if [[ "${SKIP_CRD:-}" == "1" ]]; then
-  echo "Headless — skipping Chrome Remote Desktop registration."
+# --- Chrome Remote Desktop (opt-in via --desktop) -------------------------
+# Headless is the default; a desktop is only set up when you pass --desktop. SKIP_CRD=1 in the
+# env still force-disables it (fleet.sh sets it for bulk workers).
+if [[ "${WANT_DESKTOP:-0}" != "1" || "${SKIP_CRD:-}" == "1" ]]; then
+  echo "Headless — no desktop (pass --desktop to set up Chrome Remote Desktop)."
 elif [[ -z "${CRD_PIN:-}" ]]; then
-  echo "CRD_PIN not set in .env — skipping desktop. Register later: ./vm/crd-setup.sh '<code>'"
+  echo "CRD_PIN not set in .env — skipping desktop. Register later: ./vm/crd-setup.sh '<code>' $NAME"
 else
   CRD_URL="https://remotedesktop.google.com/headless"
   echo

@@ -3,10 +3,10 @@
 # every future node. Use it to bake graphical/home-dir state (browser sign-ins, dotfiles,
 # any GUI config) so new nodes come up ready.
 #
-#   1. ./vm/create.sh seed          # boot a node from the current golden image
+#   1. ./vm/create.sh --desktop seed # boot a node w/ a desktop (needed to configure it)
 #   2. connect at remotedesktop.google.com/access and configure whatever you want baked in
-#   3. ./vm/reimage.sh seed         # generalize + re-bake the golden image from it
-#   4. ./vm/create.sh               # new nodes now stamp the configured state
+#   3. ./vm/reimage.sh seed          # generalize + re-bake the golden image from it
+#   4. ./vm/create.sh                # new nodes now stamp the configured state
 #
 # It keeps the home dir (~) and strips only per-machine identity. CRD registration can't be
 # baked (single-use), so each new node still does its one-time CRD code.

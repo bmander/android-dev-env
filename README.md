@@ -72,7 +72,8 @@ Then create nodes from it (needs a **reusable** `TAILSCALE_AUTHKEY`, since every
 its own tailnet member):
 
 ```bash
-./vm/create.sh              # primary node (prompts for the one-time CRD desktop code)
+./vm/create.sh              # a headless node (SSH/Claude only)
+./vm/create.sh --desktop    # ...with Chrome Remote Desktop (prompts for the one-time code)
 ./vm/create.sh android-dev-2   # another node
 ```
 
@@ -83,8 +84,9 @@ its own tailnet member):
 ./vm/fleet.sh list          # show them
 ./vm/fleet.sh down          # delete them all
 ```
-Workers are headless (SSH/Claude only); the desktop (CRD) is registered on your primary
-node only. Set `ANTHROPIC_API_KEY` in `.env` so `claude` works non-interactively on workers.
+Workers are headless (SSH/Claude only); a desktop (CRD) is only set up when you pass
+`--desktop` to `create.sh`. Set `ANTHROPIC_API_KEY` in `.env` so `claude` works
+non-interactively on workers.
 
 Re-run `./vm/bake.sh` whenever you change `vm/startup-script.sh` (the provisioner) or the
 helper scripts. To iterate on `push-build`/`warm-repo` on a live node without a full
@@ -96,7 +98,7 @@ re-bake, use `./vm/push-repo.sh [name]`.
 afterward *without* rebuilding the whole image, configure any live node and re-bake from it:
 
 ```bash
-./vm/create.sh seed        # (or reuse an existing node)
+./vm/create.sh --desktop seed   # (or reuse an existing node) — needs a desktop to configure
 # connect at remotedesktop.google.com/access and change whatever you want baked in
 ./vm/reimage.sh seed       # re-bake the golden image from that node
 ./vm/create.sh             # new nodes now stamp the new state

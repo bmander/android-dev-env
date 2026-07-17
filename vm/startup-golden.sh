@@ -77,7 +77,7 @@ if command -v git >/dev/null; then
     git clone --depth 1 "$TOOLS_REPO" "$TOOLS_DIR" || true
   fi
   chmod -R a+rX "$TOOLS_DIR" 2>/dev/null || true
-  echo "vm/ toolkit at $TOOLS_DIR — 'cd $TOOLS_DIR && ./vm/create.sh --headless NAME' to spawn a node."
+  echo "vm/ toolkit at $TOOLS_DIR — 'cd $TOOLS_DIR && ./vm/create.sh NAME' to spawn a node."
 fi
 
 # --- Chrome Remote Desktop: resume if this node was registered -------------
